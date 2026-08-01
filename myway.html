@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的成长历程</title>
+    <style>
+		.logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+		
+		.container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+		
+		.header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+		
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+			background-image: url("picture/d3SJaPgZhqMVOQv.thumb.png");
+            background-size: cover;
+			background-attachment: fixed;
+			background-repeat: no-repeat;
+        }
+        header {
+            background-color: #fff;
+			opacity: 0.8;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 20px 0;
+        }
+		
+		nav ul {
+            display: flex;
+            list-style: none;
+        }
+        
+        nav ul li {
+            margin-left: 20px;
+        }
+        
+        nav ul li a {
+            color: #2c3e50;
+            font-weight: 500;
+            padding: 5px 10px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        nav ul li a:hover {
+            background-color: #ecf0f1;
+        }
+        .container {
+            width: 80%;
+            margin: 20px auto;
+            background: white;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+			background-color: rgba(255,255,255,0.8);
+        }
+        h1, h2 {
+            color: #2c3e50;
+        }
+        .chart-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            max-width: 100%;
+            background: #000;
+			
+        }
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+			
+        }
+        footer {
+           background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 30px 0;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">我的成长经历&nbsp;</div>
+                <nav>
+                    <ul>
+                        <li><a href="index.html" style="text-decoration: none">首页</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+    <div class="container">
+        <h2>个人统计信息</h2>
+        <div class="chart-container">
+            <table>
+                <tr>
+                    <th>年龄</th>
+                    <th>教育阶段</th>
+                    <th>兴趣爱好</th>
+                    <th>重要事件</th>
+                </tr>
+                <tr>
+                    <td>6-12岁</td>
+                    <td>小学</td>
+                    <td>绘画、阅读</td>
+                    <td>小升初的全市13名&nbsp;</td>
+                </tr>
+                <tr>
+                    <td>13-15岁</td>
+                    <td>初中</td>
+                    <td>篮球</td>
+                    <td>考进市重点高中&nbsp;</td>
+                </tr>
+                <tr>
+                    <td>16-18岁</td>
+                    <td>高中</td>
+                    <td>音乐</td>
+                    <td>参与NOIP比赛得奖&nbsp;</td>
+                </tr>
+                <tr>
+                    <td>19-22岁</td>
+                    <td>大学</td>
+                    <td>编程、游戏</td>
+                    <td>无&nbsp;</td>
+                </tr>
+            </table>
+        </div>
+        
+        <h2>学习成长曲线</h2>
+        <div class="chart-container">
+            <img src="picture/成长.png" alt="学习成长曲线图" style="width: 80%; height: auto;">
+            <p>此图表展示了我在不同教育阶段的学习成绩变化。</p>
+        </div>
+        
+        <h2>兴趣爱好分布</h2>
+        <div class="chart-container">
+            <img src="./picture/兴趣.png" alt="兴趣爱好分布图" style="width: 80%; height: auto;">
+            <p>此图表展示了我不同兴趣爱好的时间分配。</p>
+        </div>
+        
+        <h2>生活点滴视频</h2>
+        <div class="video-container">
+            <iframe src="https://player.bilibili.com/player.html?isOutside=true&aid=984714877&bvid=BV1ct4y1n7t9&cid=807427488&p=1&autoplay=0&high_quality=1&muted=1&danmaku=0" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+        </div>
+        <p>实在没啥生活视频了老师＿|￣|○</p>
+    </div>
+    <footer>
+        <p>我的成长历程 &copy; 2025</p>
+    </footer>
+</body>
+</html>

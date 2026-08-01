@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的个人博客</title>
+    <style>
+        /* 全局样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+        
+        body {
+            background-image: url("picture/d3SJaPgZhqMVOQv.thumb.png");
+            background-size: cover;
+			background-attachment: fixed;
+			background-repeat: no-repeat;
+            line-height: 1.6;
+        }
+        
+        a {
+            text-decoration: none;
+            color: #3498db;
+        }
+        
+        a:hover {
+            color: #2980b9;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* 头部样式 */
+        header {
+            background-color: #fff;
+			opacity: 0.8;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 20px 0;
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        nav ul {
+            display: flex;
+            list-style: none;
+        }
+        
+        nav ul li {
+            margin-left: 20px;
+        }
+        
+        nav ul li a {
+            color: #2c3e50;
+            font-weight: 500;
+            padding: 5px 10px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        nav ul li a:hover {
+            background-color: #ecf0f1;
+        }
+        
+        /* 主要内容区域 */
+        .main-content {
+            display: flex;
+            margin: 30px 0;
+        }
+        
+        /* 博客文章区域 */
+        .blog-posts {
+            flex: 2;
+            margin-right: 30px;opacity: 0.9;
+        }
+        
+        .post {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .post-title {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .post-meta {
+            color: #7f8c8d;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        
+        .post-content {
+            margin-bottom: 15px;
+        }
+        
+        .read-more {
+            display: inline-block;
+            background-color: #3498db;
+            color: #fff;
+            padding: 8px 15px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        
+        .read-more:hover {
+            background-color: #2980b9;
+            color: #fff;
+        }
+        
+        /* 侧边栏 */
+        .sidebar {
+            flex: 1;opacity: 0.8;
+        }
+        
+        .sidebar-widget {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .widget-title {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        .about-me {
+            text-align: center;
+        }
+        
+        .profile-img {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            margin: 0 auto 15px;
+            display: block;
+            object-fit: cover;
+        }
+        
+        .categories ul {
+            list-style: none;
+        }
+        
+        .categories ul li {
+            margin-bottom: 10px;
+        }
+        
+        .categories ul li a {
+            display: block;
+            padding: 5px 10px;
+            background-color: #ecf0f1;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        .categories ul li a:hover {
+            background-color: #d5dbdb;
+        }
+        
+        .recent-posts li {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        .recent-posts li:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+        
+        /* 页脚 */
+        footer {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 30px 0;
+            text-align: center;
+        }
+        
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .footer-links a {
+            color: #ecf0f1;
+            margin: 0 10px;
+        }
+        
+        .footer-links a:hover {
+            text-decoration: underline;
+        }
+        
+        .copyright {
+            border-top: 1px solid #34495e;
+            padding-top: 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">Yelou个人博客</div>
+                <nav>
+                    <ul>
+                        <li><a href="#">首页</a></li>
+                        <li><a href="introduce.html">关于我</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="main-content">
+            <div class="blog-posts">
+                <article class="post">
+                    <h2 class="post-title"><a href="#">个人基本信息&nbsp;</a></h2>
+                    <div class="post-meta">
+                        <span>发布于: 2023年10月15日</span> | 
+                        <span>分类: <a href="#">博客</a></span>
+                    </div>
+                    <div class="post-content">
+                        <p>欢迎来到我的个人博客！我叫杨楼，在这里我将分享我的生活、学习和工作中的点点滴滴。无论你是我的朋友、同学、老师，还是偶然路过的访客，都希望这里的内容能够给你带来帮助或启发。</p>
+                        <p>我会在这里记录我的成长历程，分享有用的知识和经验。如果你对某些内容感兴趣，或者有任何问题或建议，欢迎随时联系我！</p>
+                  </div>
+                    <a href="introduce.html" class="read-more">阅读更多</a>
+                </article>
+                
+                <article class="post">
+                  <h2 class="post-title"><a href="#">我的学习之路</a></h2>
+                    <div class="post-meta">
+                        <span>发布于: 2023年10月10日</span> | 
+                        <span>分类: <a href="#">博客&nbsp;</a></span>
+                    </div>
+                    <div class="post-content">
+                        <p>这部分记录了我的部分成长经历&nbsp;</p>
+                        <p>在这里，我将分享我的成长曲线、兴趣分布图等。如果你有任何问题或建议，我很乐意与你交流！</p>
+                    </div>
+                    <a href="myway.html" class="read-more">阅读更多</a>
+                </article>
+                
+                <article class="post">
+                    <h2 class="post-title"><a href="#">一路所获&nbsp;</a></h2>
+                    <div class="post-meta">
+                        <span>发布于: 2023年10月5日</span> | 
+                        <span>分类: <a href="#">博客&nbsp;</a></span>
+                    </div>
+                    <div class="post-content">
+                        <p>这里是一些我曾经获得的荣誉&nbsp;</p>
+                    </div>
+                    <a href="honor.html" class="read-more">阅读更多</a>
+                </article>
+            </div>
+            
+            <aside class="sidebar">
+                <div class="sidebar-widget about-me">
+                    <img src="picture/Image_1751250027684.jpg" alt="个人头像" class="profile-img">
+                    <h3 class="widget-title">杨楼&nbsp;</h3>
+                    <p>你好！我是一名热爱技术、运动和游戏的博客作者。通过这个博客，我希望能够分享我的所学所思，记录生活中的美好瞬间。</p>
+                </div>
+                
+                <div class="sidebar-widget categories">
+                    <h3 class="widget-title">分类</h3>
+                    <ul>
+                        <li><a href="#">博客</a></li>
+                        <li><a href="#">学习笔记</a></li>
+                        <li><a href="#">生活感悟</a></li>
+                    </ul>
+                </div>
+                
+                <div class="sidebar-widget recent-posts">
+                    <h3 class="widget-title">最近文章</h3>
+                    <ul>
+                        <li><a href="#">敬请期待</a></li>
+                    </ul>
+                </div>
+            </aside>
+        </div>
+    </div>
+    
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-info">
+                    <p>© 2025 我的个人博客. 保留所有权利.</p>
+                </div>
+                <div class="footer-links">
+                    <a href="index.html">首页</a>
+                </div>
+            </div>
+            <div class="copyright">
+                <p>本网站由热爱分享的我创建和维护</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
