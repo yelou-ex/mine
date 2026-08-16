@@ -12,7 +12,12 @@
             background-attachment: fixed;
             background-repeat: no-repeat;
             line-height: 1.7;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
+        /* 内容不足一屏时让页脚始终贴底 */
+        .main-wrap { flex: 1 1 auto; width: 100%; }
         a { text-decoration: none; color: #3498db; }
         a:hover { color: #2980b9; }
         .container { max-width: 900px; margin: 0 auto; padding: 0 20px; }
@@ -75,7 +80,7 @@
         </div>
     </header>
 
-    <div class="container">
+    <div class="container main-wrap">
         <div id="articleWrap">
             <div class="post-tip">文章加载中…</div>
         </div>
