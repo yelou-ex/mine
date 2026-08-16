@@ -124,12 +124,12 @@ export async function onRequest(context) {
       const category = url.searchParams.get('category') || '';
       if (category) {
         const rows = await env.DB.prepare(
-          'SELECT id, title, category, tags, created_at FROM articles WHERE category = ? ORDER BY created_at DESC, id DESC'
+          'SELECT id, title, category, tags, link, created_at FROM articles WHERE category = ? ORDER BY created_at DESC, id DESC'
         ).bind(category).all();
         return json({ articles: rows.results });
       }
       const rows = await env.DB.prepare(
-        'SELECT id, title, category, tags, created_at FROM articles ORDER BY created_at DESC, id DESC'
+        'SELECT id, title, category, tags, link, created_at FROM articles ORDER BY created_at DESC, id DESC'
       ).all();
       return json({ articles: rows.results });
     }
@@ -137,7 +137,7 @@ export async function onRequest(context) {
     const detailMatch = path.match(/^\/api\/articles\/(\d+)$/);
     if (detailMatch && method === 'GET') {
       const row = await env.DB.prepare(
-        'SELECT id, title, content, category, tags, created_at FROM articles WHERE id = ?'
+        'SELECT id, title, content, category, tags, link, created_at FROM articles WHERE id = ?'
       ).bind(Number(detailMatch[1])).first();
       if (!row) return json({ message: '文章不存在或已被删除' }, 404);
       return json({ article: row });
@@ -151,7 +151,7 @@ export async function onRequest(context) {
         if (!session) return unauthorized();
         const keyword = url.searchParams.get('keyword') || '';
         const category = url.searchParams.get('category') || '';
-        let sql = 'SELECT id, title, category, tags, created_at FROM articles WHERE 1=1';
+        let sql = 'SELECT id, title, category, tags, link, created_at FROM articles WHERE 1=1';
         const args = [];
         if (keyword) { sql += ' AND title LIKE ?'; args.push(`%${keyword}%`); }
         if (category) { sql += ' AND category = ?'; args.push(category); }

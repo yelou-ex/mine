@@ -355,17 +355,19 @@
                     return;
                 }
                 box.innerHTML = articles.map(function (a) {
+                    // 有 link 的文章（如三个原有静态页面）点击进入静态页面，否则进入文章详情页
+                    var href = a.link ? a.link : 'article.html?id=' + a.id;
                     var tags = (a.tags || '').split(',').filter(Boolean)
                         .map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; })
                         .join('');
                     return '<article class="post">' +
-                        '<h2 class="post-title"><a href="article.html?id=' + a.id + '">' + esc(a.title) + '</a></h2>' +
+                        '<h2 class="post-title"><a href="' + href + '">' + esc(a.title) + '</a></h2>' +
                         '<div class="post-meta">' +
                         '<span>发布于: ' + fmtDate(a.created_at) + '</span> | ' +
                         '<span>分类: <a href="index.html?category=' + encodeURIComponent(a.category) + '">' + esc(a.category) + '</a></span>' +
                         (tags ? ' | <span class="post-tags">' + tags + '</span>' : '') +
                         '</div>' +
-                        '<a href="article.html?id=' + a.id + '" class="read-more">阅读更多</a>' +
+                        '<a href="' + href + '" class="read-more">阅读更多</a>' +
                         '</article>';
                 }).join('');
             }
@@ -377,7 +379,8 @@
                     return;
                 }
                 ul.innerHTML = articles.slice(0, 5).map(function (a) {
-                    return '<li><a href="article.html?id=' + a.id + '">' + esc(a.title) + '</a></li>';
+                    var href = a.link ? a.link : 'article.html?id=' + a.id;
+                    return '<li><a href="' + href + '">' + esc(a.title) + '</a></li>';
                 }).join('');
             }
 

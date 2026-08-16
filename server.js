@@ -309,13 +309,13 @@ app.get('/api/articles', (req, res) => {
     if (category) {
       const rows = db
         .prepare(
-          'SELECT id, title, category, tags, created_at FROM articles WHERE category = ? ORDER BY created_at DESC, id DESC'
+          'SELECT id, title, category, tags, link, created_at FROM articles WHERE category = ? ORDER BY created_at DESC, id DESC'
         )
         .all(category);
       return res.json({ articles: rows });
     }
     const rows = db
-      .prepare('SELECT id, title, category, tags, created_at FROM articles ORDER BY created_at DESC, id DESC')
+      .prepare('SELECT id, title, category, tags, link, created_at FROM articles ORDER BY created_at DESC, id DESC')
       .all();
     res.json({ articles: rows });
   } catch (e) {
@@ -329,7 +329,7 @@ app.get('/api/articles/:id', (req, res) => {
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: '文章不存在或已被删除' });
   try {
     const row = db
-      .prepare('SELECT id, title, content, category, tags, created_at FROM articles WHERE id = ?')
+      .prepare('SELECT id, title, content, category, tags, link, created_at FROM articles WHERE id = ?')
       .get(id);
     if (!row) return res.status(404).json({ message: '文章不存在或已被删除' });
     res.json({ article: row });
@@ -345,7 +345,7 @@ app.get('/api/admin/articles', (req, res) => {
   const keyword = typeof req.query.keyword === 'string' ? req.query.keyword.trim() : '';
   const category = typeof req.query.category === 'string' ? req.query.category.trim() : '';
   try {
-    let sql = 'SELECT id, title, category, tags, created_at FROM articles WHERE 1=1';
+    let sql = 'SELECT id, title, category, tags, link, created_at FROM articles WHERE 1=1';
     const params = [];
     if (keyword) {
       sql += ' AND title LIKE ?';

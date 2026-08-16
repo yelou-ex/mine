@@ -234,6 +234,7 @@ const SEED_ARTICLES = [
     title: '个人基本信息',
     category: '博客',
     tags: '',
+    link: 'introduce.html',
     created_at: '2023-10-15 00:00:00',
     content:
       '<p>欢迎来到我的个人博客！我叫杨楼，在这里我将分享我的生活、学习和工作中的点点滴滴。无论你是我的朋友、同学、老师，还是偶然路过的访客，都希望这里的内容能够给你带来帮助或启发。</p>' +
@@ -243,6 +244,7 @@ const SEED_ARTICLES = [
     title: '我的学习之路',
     category: '博客',
     tags: '',
+    link: 'myway.html',
     created_at: '2023-10-10 00:00:00',
     content:
       '<p>这部分记录了我的部分成长经历。</p>' +
@@ -252,6 +254,7 @@ const SEED_ARTICLES = [
     title: '一路所获',
     category: '博客',
     tags: '',
+    link: 'honor.html',
     created_at: '2023-10-05 00:00:00',
     content: '<p>这里是一些我曾经获得的荣誉。</p>',
   },
@@ -272,6 +275,7 @@ export async function ensureSchema(env) {
       content TEXT NOT NULL,
       category TEXT NOT NULL,
       tags TEXT NOT NULL DEFAULT '',
+      link TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
     )`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS login_logs (
@@ -295,6 +299,16 @@ export async function ensureSchema(env) {
       value TEXT
     )`),
   ]);
+  // 迁移：为旧库补 link 列，并为 3 篇种子文章设置指向原有静态页面的链接
+  const artCols = await env.DB.prepare('PRAGMA table_info(articles)').all();
+  if (!artCols.results.some((c) => c.name === 'link')) {
+    await env.DB.prepare("ALTER TABLE articles ADD COLUMN link TEXT NOT NULL DEFAULT ''").run();
+  }
+  await env.DB.batch([
+    env.DB.prepare("UPDATE articles SET link = 'introduce.html' WHERE title = '个人基本信息' AND link = ''"),
+    env.DB.prepare("UPDATE articles SET link = 'myway.html' WHERE title = '我的学习之路' AND link = ''"),
+    env.DB.prepare("UPDATE articles SET link = 'honor.html' WHERE title = '一路所获' AND link = ''"),
+  ]);
   // 默认管理员（幂等）
   const admin = await env.DB.prepare('SELECT id FROM admins WHERE username = ?').bind(DEFAULT_ADMIN.username).first();
   if (!admin) {
@@ -309,9 +323,9 @@ export async function ensureSchema(env) {
     const count = await env.DB.prepare('SELECT COUNT(*) AS c FROM articles').first();
     if (count.c === 0) {
       const ins = env.DB.prepare(
-        'INSERT INTO articles (title, content, category, tags, created_at) VALUES (?, ?, ?, ?, ?)'
+        'INSERT INTO articles (title, content, category, tags, link, created_at) VALUES (?, ?, ?, ?, ?, ?)'
       );
-      await env.DB.batch(SEED_ARTICLES.map((a) => ins.bind(a.title, a.content, a.category, a.tags, a.created_at)));
+      await env.DB.batch(SEED_ARTICLES.map((a) => ins.bind(a.title, a.content, a.category, a.tags, a.link, a.created_at)));
     }
     await env.DB.prepare("INSERT INTO app_meta (key, value) VALUES ('seeded', '1')").run();
   }

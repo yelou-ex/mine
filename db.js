@@ -2,7 +2,7 @@
  * db.js — SQLite 数据库层（better-sqlite3）
  * 表结构：
  *   admins      管理员账户（密码 bcrypt 哈希存储，含失败计数/锁定字段）
- *   articles    文章
+ *   articles    文章（link 字段：非空时前台"阅读更多"跳转到指定静态页面）
  *   login_logs  登录日志
  * 所有 SQL 均使用参数化查询（prepared statements），防止注入。
  */
@@ -20,12 +20,13 @@ const DB_PATH = path.join(DATA_DIR, 'website.db');
 // 默认管理员（仅当管理员表为空时创建；生产环境请立即修改密码）
 const DEFAULT_ADMIN = { username: 'admin', password: 'admin123' };
 
-// 首次运行时创建默认管理员
+// 种子文章（保持与网站原有静态内容一致；link 指向原有静态页面，点击"阅读更多"跳转到对应页面）
 const DEFAULT_ARTICLES = [
   {
     title: '个人基本信息',
     category: '博客',
     tags: '',
+    link: 'introduce.html',
     created_at: '2023-10-15 00:00:00',
     content:
       '<p>欢迎来到我的个人博客！我叫杨楼，在这里我将分享我的生活、学习和工作中的点点滴滴。无论你是我的朋友、同学、老师，还是偶然路过的访客，都希望这里的内容能够给你带来帮助或启发。</p>' +
@@ -35,6 +36,7 @@ const DEFAULT_ARTICLES = [
     title: '我的学习之路',
     category: '博客',
     tags: '',
+    link: 'myway.html',
     created_at: '2023-10-10 00:00:00',
     content:
       '<p>这部分记录了我的部分成长经历。</p>' +
@@ -44,6 +46,7 @@ const DEFAULT_ARTICLES = [
     title: '一路所获',
     category: '博客',
     tags: '',
+    link: 'honor.html',
     created_at: '2023-10-05 00:00:00',
     content: '<p>这里是一些我曾经获得的荣誉。</p>',
   },
@@ -72,6 +75,7 @@ db.exec(`
     content    TEXT NOT NULL,
     category   TEXT NOT NULL,
     tags       TEXT NOT NULL DEFAULT '',
+    link       TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
   );
 
@@ -83,6 +87,20 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
   );
 `);
+
+// 迁移：为已有数据库补 link 列，并为 3 篇种子文章设置指向原有静态页面的链接
+function migrate() {
+  const cols = db.prepare('PRAGMA table_info(articles)').all();
+  if (!cols.some((c) => c.name === 'link')) {
+    db.prepare("ALTER TABLE articles ADD COLUMN link TEXT NOT NULL DEFAULT ''").run();
+    console.log('[db] 已迁移：articles 表新增 link 列');
+  }
+  const upd = db.prepare("UPDATE articles SET link = ? WHERE title = ? AND link = ''");
+  upd.run('introduce.html', '个人基本信息');
+  upd.run('myway.html', '我的学习之路');
+  upd.run('honor.html', '一路所获');
+}
+migrate();
 
 // 初始化默认管理员（密码 bcrypt cost=10）
 function ensureDefaultAdmin() {
@@ -103,11 +121,11 @@ function ensureSeedArticles() {
   const row = db.prepare('SELECT COUNT(*) AS c FROM articles').get();
   if (row.c > 0) return;
   const ins = db.prepare(
-    'INSERT INTO articles (title, content, category, tags, created_at) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO articles (title, content, category, tags, link, created_at) VALUES (?, ?, ?, ?, ?, ?)'
   );
   const tx = db.transaction(() => {
     for (const a of DEFAULT_ARTICLES) {
-      ins.run(a.title, a.content, a.category, a.tags, a.created_at);
+      ins.run(a.title, a.content, a.category, a.tags, a.link, a.created_at);
     }
   });
   tx();
