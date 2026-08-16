@@ -373,6 +373,7 @@
                         '<span>分类: <a href="index.html?category=' + encodeURIComponent(a.category) + '">' + esc(a.category) + '</a></span>' +
                         (tags ? ' | <span class="post-tags">' + tags + '</span>' : '') +
                         '</div>' +
+                        (a.summary ? '<div class="post-content">' + esc(a.summary) + '</div>' : '') +
                         '<a href="' + href + '" class="read-more">阅读更多</a>' +
                         '</article>';
                 }).join('');

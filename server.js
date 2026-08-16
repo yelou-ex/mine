@@ -291,6 +291,33 @@ app.post('/api/logout', (req, res) => {
   });
 });
 
+// 修改密码（管理员 + CSRF）
+app.post('/api/admin/change-password', requireAdminWrite, async (req, res) => {
+  try {
+    const oldPassword = typeof req.body.oldPassword === 'string' ? req.body.oldPassword : '';
+    const newPassword = typeof req.body.newPassword === 'string' ? req.body.newPassword : '';
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ message: '请填写旧密码和新密码' });
+    }
+    if (newPassword.length < 6 || newPassword.length > 64) {
+      return res.status(400).json({ message: '新密码长度需为 6-64 个字符' });
+    }
+    if (newPassword === oldPassword) {
+      return res.status(400).json({ message: '新密码不能与旧密码相同' });
+    }
+    const admin = db.prepare('SELECT * FROM admins WHERE id = ?').get(req.session.adminId);
+    if (!admin) return res.status(401).json({ message: '未登录或会话已过期' });
+    const ok = await bcrypt.compare(oldPassword, admin.password_hash);
+    if (!ok) return res.status(400).json({ message: '旧密码不正确' });
+    const hash = await bcrypt.hash(newPassword, 10);
+    db.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').run(hash, admin.id);
+    res.json({ success: true, message: '密码修改成功' });
+  } catch (e) {
+    console.error('[change-password]', e);
+    res.status(500).json({ message: '系统繁忙，请稍后重试' });
+  }
+});
+
 // 当前登录状态 / CSRF Token 下发
 app.get('/api/auth/status', (req, res) => {
   if (!isSessionValid(req)) return res.json({ loggedIn: false });
@@ -303,21 +330,34 @@ app.get('/api/csrf-token', (req, res) => {
 });
 
 /* ================= 前台文章 API（公开只读） ================= */
+// 生成文章内容摘要（剥离 HTML，截取纯文本）
+function makeSummary(content, maxLen = 120) {
+  const text = String(content || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length > maxLen ? text.slice(0, maxLen) + '…' : text;
+}
+
 app.get('/api/articles', (req, res) => {
   const category = typeof req.query.category === 'string' ? req.query.category.trim() : '';
   try {
+    const withSummary = (rows) =>
+      rows.map((a) => ({ ...a, summary: makeSummary(a.content) }));
     if (category) {
       const rows = db
         .prepare(
-          'SELECT id, title, category, tags, link, created_at FROM articles WHERE category = ? ORDER BY created_at DESC, id DESC'
+          'SELECT id, title, category, tags, link, content, created_at FROM articles WHERE category = ? ORDER BY created_at DESC, id DESC'
         )
         .all(category);
-      return res.json({ articles: rows });
+      return res.json({ articles: withSummary(rows) });
     }
     const rows = db
-      .prepare('SELECT id, title, category, tags, link, created_at FROM articles ORDER BY created_at DESC, id DESC')
+      .prepare('SELECT id, title, category, tags, link, content, created_at FROM articles ORDER BY created_at DESC, id DESC')
       .all();
-    res.json({ articles: rows });
+    res.json({ articles: withSummary(rows) });
   } catch (e) {
     console.error('[articles.list]', e);
     res.status(500).json({ message: '系统繁忙，请稍后重试' });
@@ -388,10 +428,23 @@ app.post('/api/admin/articles', requireAdminWrite, (req, res) => {
       if (now - v.time > DUP_SUBMIT_WINDOW_MS) recentSubmits.delete(k);
     }
 
-    const info = db
-      .prepare('INSERT INTO articles (title, content, category, tags) VALUES (?, ?, ?, ?)')
-      .run(title, content, category, tags);
-    res.json({ success: true, id: info.lastInsertRowid, message: '发布成功' });
+    // 取最小可用 id：删除文章后 id 复用（如删了 4，下一篇仍为 4）
+    const nextRow = db
+      .prepare(
+        `SELECT t.id FROM (
+           SELECT 1 AS id
+           UNION ALL
+           SELECT id + 1 FROM articles
+         ) t
+         WHERE NOT EXISTS (SELECT 1 FROM articles a WHERE a.id = t.id)
+         ORDER BY t.id LIMIT 1`
+      )
+      .get();
+    const newId = nextRow ? nextRow.id : 1;
+
+    db.prepare('INSERT INTO articles (id, title, content, category, tags) VALUES (?, ?, ?, ?, ?)')
+      .run(newId, title, content, category, tags);
+    res.json({ success: true, id: newId, message: '发布成功' });
   } catch (e) {
     console.error('[admin.articles.create]', e);
     res.status(500).json({ message: '发布失败，请稍后重试' }); // BC-20 保留表单内容由前端处理

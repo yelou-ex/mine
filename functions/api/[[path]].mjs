@@ -105,6 +105,26 @@ export async function onRequest(context) {
       return res;
     }
 
+    /* ---------- 修改密码（管理员 + CSRF） ---------- */
+    if (path === '/api/admin/change-password' && method === 'POST') {
+      const auth = await requireAdminWrite(request, env);
+      if (auth.error) return auth.error;
+      const body = await readBody(request);
+      if (!body) return json({ message: '请求体格式错误' }, 400);
+      const oldPassword = typeof body.oldPassword === 'string' ? body.oldPassword : '';
+      const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
+      if (!oldPassword || !newPassword) return json({ message: '请填写旧密码和新密码' }, 400);
+      if (newPassword.length < 6 || newPassword.length > 64) return json({ message: '新密码长度需为 6-64 个字符' }, 400);
+      if (newPassword === oldPassword) return json({ message: '新密码不能与旧密码相同' }, 400);
+      const admin = await env.DB.prepare('SELECT id, password_hash FROM admins WHERE id = ?').bind(auth.session.adminId).first();
+      if (!admin) return unauthorized();
+      const ok = await verifyPassword(oldPassword, admin.password_hash);
+      if (!ok) return json({ message: '旧密码不正确' }, 400);
+      const hash = await hashPassword(newPassword);
+      await env.DB.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').bind(hash, admin.id).run();
+      return json({ success: true, message: '密码修改成功' });
+    }
+
     /* ---------- 登录状态 / CSRF 下发 ---------- */
     if (path === '/api/auth/status') {
       const session = await getAdminSession(request, env);
@@ -120,18 +140,28 @@ export async function onRequest(context) {
     }
 
     /* ---------- 前台公开接口 ---------- */
+    // 生成文章内容摘要（剥离 HTML，截取纯文本）
+    const makeSummary = (content, maxLen = 120) => {
+      const text = String(content || '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return text.length > maxLen ? text.slice(0, maxLen) + '…' : text;
+    };
     if (path === '/api/articles' && method === 'GET') {
       const category = url.searchParams.get('category') || '';
       if (category) {
         const rows = await env.DB.prepare(
-          'SELECT id, title, category, tags, link, created_at FROM articles WHERE category = ? ORDER BY created_at DESC, id DESC'
+          'SELECT id, title, category, tags, link, content, created_at FROM articles WHERE category = ? ORDER BY created_at DESC, id DESC'
         ).bind(category).all();
-        return json({ articles: rows.results });
+        return json({ articles: rows.results.map((a) => ({ ...a, summary: makeSummary(a.content) })) });
       }
       const rows = await env.DB.prepare(
-        'SELECT id, title, category, tags, link, created_at FROM articles ORDER BY created_at DESC, id DESC'
+        'SELECT id, title, category, tags, link, content, created_at FROM articles ORDER BY created_at DESC, id DESC'
       ).all();
-      return json({ articles: rows.results });
+      return json({ articles: rows.results.map((a) => ({ ...a, summary: makeSummary(a.content) })) });
     }
 
     const detailMatch = path.match(/^\/api\/articles\/(\d+)$/);
@@ -174,10 +204,21 @@ export async function onRequest(context) {
         if (await isDuplicateSubmit(env, fingerprint)) {
           return json({ message: '请勿重复提交' }, 429); // BC-19
         }
-        const info = await env.DB.prepare(
-          'INSERT INTO articles (title, content, category, tags) VALUES (?, ?, ?, ?)'
-        ).bind(title, content, category, tags).run();
-        return json({ success: true, id: info.meta.last_row_id, message: '发布成功' });
+        // 取最小可用 id：删除文章后 id 复用（如删了 4，下一篇仍为 4）
+        const nextRow = await env.DB.prepare(
+          `SELECT t.id FROM (
+             SELECT 1 AS id
+             UNION ALL
+             SELECT id + 1 FROM articles
+           ) t
+           WHERE NOT EXISTS (SELECT 1 FROM articles a WHERE a.id = t.id)
+           ORDER BY t.id LIMIT 1`
+        ).first();
+        const newId = nextRow ? nextRow.id : 1;
+        await env.DB.prepare(
+          'INSERT INTO articles (id, title, content, category, tags) VALUES (?, ?, ?, ?, ?)'
+        ).bind(newId, title, content, category, tags).run();
+        return json({ success: true, id: newId, message: '发布成功' });
       }
       return json({ message: '接口不存在' }, 404);
     }

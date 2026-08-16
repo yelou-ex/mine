@@ -198,6 +198,7 @@
         <div class="user-area">
             <span id="userName">管理员</span>
             <a href="/" style="color:#bdc3c7;font-size:13px;">查看前台</a>
+            <button id="changePwdBtn" class="btn-logout" style="background:#f39c12;">修改密码</button>
             <button id="logoutBtn" class="btn-logout">退出登录</button>
         </div>
     </div>
@@ -289,6 +290,29 @@
             <div class="btns">
                 <button class="btn-cancel" id="modalCancel">取消</button>
                 <button class="btn-confirm-del" id="modalConfirm">确认删除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 修改密码弹窗 -->
+    <div class="modal-mask" id="pwdModal">
+        <div class="modal">
+            <h3>修改密码</h3>
+            <div class="form-group" style="margin-top:14px;">
+                <label for="pwdOld">旧密码</label>
+                <input type="password" id="pwdOld" placeholder="请输入当前密码" maxlength="64">
+            </div>
+            <div class="form-group">
+                <label for="pwdNew">新密码</label>
+                <input type="password" id="pwdNew" placeholder="6-64 个字符" maxlength="64">
+            </div>
+            <div class="form-group">
+                <label for="pwdNew2">确认新密码</label>
+                <input type="password" id="pwdNew2" placeholder="再次输入新密码" maxlength="64">
+            </div>
+            <div class="btns">
+                <button class="btn-cancel" id="pwdCancel">取消</button>
+                <button class="btn-confirm-del" id="pwdConfirm" style="background:#27ae60;">确认修改</button>
             </div>
         </div>
     </div>
@@ -560,6 +584,50 @@
             $('logoutBtn').addEventListener('click', function () {
                 fetch('/api/logout', { method: 'POST' }).finally(function () {
                     location.href = '/admin/login.html';
+                });
+            });
+
+            /* ---------- 修改密码 ---------- */
+            function openPwdModal() {
+                $('pwdOld').value = '';
+                $('pwdNew').value = '';
+                $('pwdNew2').value = '';
+                $('pwdModal').classList.add('show');
+                $('pwdOld').focus();
+            }
+            function closePwdModal() {
+                $('pwdModal').classList.remove('show');
+            }
+            $('changePwdBtn').addEventListener('click', openPwdModal);
+            $('pwdCancel').addEventListener('click', closePwdModal);
+            $('pwdModal').addEventListener('click', function (e) {
+                if (e.target === $('pwdModal')) closePwdModal();
+            });
+            $('pwdConfirm').addEventListener('click', function () {
+                var oldPwd = $('pwdOld').value;
+                var newPwd = $('pwdNew').value;
+                var newPwd2 = $('pwdNew2').value;
+                if (!oldPwd || !newPwd) { showError('请填写旧密码和新密码'); return; }
+                if (newPwd.length < 6 || newPwd.length > 64) { showError('新密码长度需为 6-64 个字符'); return; }
+                if (newPwd !== newPwd2) { showError('两次输入的新密码不一致'); return; }
+                var btn = $('pwdConfirm');
+                btn.disabled = true;
+                api('/api/admin/change-password', { method: 'POST', body: { oldPassword: oldPwd, newPassword: newPwd } })
+                    .then(function (r) {
+                        if (r.status === 200) {
+                            toast(r.data.message || '密码修改成功');
+                            closePwdModal();
+                        } else {
+                            showError(r.data.message || '修改失败，请重试');
+                        }
+                    })
+                    .catch(function () {})
+                    .finally(function () { btn.disabled = false; });
+            });
+            // 回车提交
+            ['pwdOld', 'pwdNew', 'pwdNew2'].forEach(function (id) {
+                $(id).addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') $('pwdConfirm').click();
                 });
             });
             $('articleForm').addEventListener('submit', function (e) {
