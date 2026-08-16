@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>后台管理 - 个人主页</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Arial', 'Microsoft YaHei', sans-serif; }
+        body { background: #f4f6f8; min-height: 100vh; }
+        .topbar {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 0 24px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 6px rgba(0,0,0,.15);
+        }
+        .topbar .brand { font-size: 17px; font-weight: 700; }
+        .topbar .brand a { color: #ecf0f1; text-decoration: none; }
+        .topbar .user-area { display: flex; align-items: center; gap: 14px; font-size: 13px; }
+        .topbar .btn-logout {
+            background: #e74c3c;
+            border: none;
+            color: #fff;
+            padding: 6px 14px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .topbar .btn-logout:hover { background: #c0392b; }
+        .tabs {
+            background: #fff;
+            border-bottom: 1px solid #e1e6ea;
+            display: flex;
+            padding: 0 24px;
+        }
+        .tabs button {
+            border: none;
+            background: none;
+            padding: 14px 22px;
+            font-size: 14px;
+            color: #7f8c8d;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            font-weight: 600;
+        }
+        .tabs button.active { color: #2c3e50; border-bottom-color: #3498db; }
+        .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+        .card {
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.06);
+            padding: 24px;
+        }
+        .panel { display: none; }
+        .panel.active { display: block; }
+        /* 工具栏 */
+        .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; align-items: center; }
+        .toolbar input[type="text"], .toolbar select {
+            height: 36px;
+            padding: 0 10px;
+            border: 1px solid #d5dbdb;
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+        }
+        .toolbar input[type="text"] { width: 240px; }
+        .toolbar .btn {
+            height: 36px;
+            padding: 0 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn-primary { background: #3498db; color: #fff; }
+        .btn-primary:hover { background: #2980b9; }
+        .btn-danger { background: #e74c3c; color: #fff; }
+        .btn-danger:hover { background: #c0392b; }
+        .btn-ghost { background: #ecf0f1; color: #34495e; }
+        .btn-ghost:hover { background: #d5dbdb; }
+        .btn:disabled { opacity: .55; cursor: not-allowed; }
+        .batch-bar { margin-bottom: 12px; font-size: 13px; color: #7f8c8d; }
+        /* 表格 */
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #ecf0f1; vertical-align: middle; }
+        th { background: #f8f9fa; color: #7f8c8d; font-weight: 600; white-space: nowrap; }
+        td .tag {
+            display: inline-block;
+            background: #eaf2f8;
+            color: #2980b9;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 12px;
+            margin: 1px 2px 1px 0;
+        }
+        .btn-del {
+            background: #fdecea;
+            color: #c0392b;
+            border: 1px solid #f5b7b1;
+            border-radius: 5px;
+            padding: 4px 12px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .btn-del:hover { background: #f5b7b1; }
+        .empty-tip { text-align: center; color: #95a5a6; padding: 40px 0; font-size: 14px; }
+        /* 分页 */
+        .pager { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 14px; font-size: 13px; color: #7f8c8d; }
+        .pager button {
+            min-width: 30px;
+            height: 30px;
+            border: 1px solid #d5dbdb;
+            background: #fff;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .pager button:disabled { opacity: .4; cursor: not-allowed; }
+        .pager .info { margin: 0 6px; }
+        /* 表单 */
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; font-size: 13px; color: #34495e; font-weight: 600; margin-bottom: 6px; }
+        .form-group .req { color: #e74c3c; }
+        .form-group input[type="text"], .form-group select, .form-group textarea {
+            width: 100%;
+            border: 1px solid #d5dbdb;
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-size: 14px;
+            outline: none;
+            font-family: inherit;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #3498db; }
+        .form-group textarea { min-height: 260px; resize: vertical; line-height: 1.7; }
+        .form-group .hint { font-size: 12px; color: #95a5a6; margin-top: 5px; }
+        .char-count { font-size: 12px; color: #95a5a6; text-align: right; margin-top: 4px; }
+        .char-count.over { color: #e74c3c; }
+        .btn-submit {
+            background: #27ae60;
+            color: #fff;
+            border: none;
+            height: 42px;
+            padding: 0 32px;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-submit:hover { background: #229954; }
+        .btn-submit:disabled { background: #aeb6bf; cursor: not-allowed; }
+        /* Toast */
+        .toast-wrap { position: fixed; top: 70px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+        .toast {
+            background: #fff;
+            border-left: 4px solid #27ae60;
+            box-shadow: 0 4px 14px rgba(0,0,0,.15);
+            border-radius: 6px;
+            padding: 12px 18px;
+            font-size: 14px;
+            min-width: 220px;
+            animation: slideIn .25s ease;
+        }
+        .toast.error { border-left-color: #e74c3c; }
+        .toast.warn { border-left-color: #f39c12; }
+        @keyframes slideIn { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+        /* 确认弹窗 */
+        .modal-mask {
+            position: fixed; inset: 0; background: rgba(0,0,0,.45);
+            display: none; align-items: center; justify-content: center; z-index: 1000;
+        }
+        .modal-mask.show { display: flex; }
+        .modal {
+            background: #fff; border-radius: 10px; width: 420px; max-width: 92vw;
+            padding: 26px 24px; box-shadow: 0 12px 40px rgba(0,0,0,.3);
+        }
+        .modal h3 { font-size: 16px; color: #2c3e50; margin-bottom: 12px; }
+        .modal p { font-size: 13px; color: #7f8c8d; margin-bottom: 8px; line-height: 1.7; }
+        .modal .target-title {
+            display: block; background: #f8f9fa; border-radius: 6px;
+            padding: 10px 12px; color: #2c3e50; font-weight: 600; word-break: break-all;
+            margin: 8px 0 16px; font-size: 14px;
+        }
+        .modal .btns { display: flex; justify-content: flex-end; gap: 10px; }
+        .modal .btns button {
+            height: 36px; padding: 0 20px; border: none; border-radius: 6px;
+            cursor: pointer; font-size: 13px;
+        }
+        .modal .btn-cancel { background: #ecf0f1; color: #34495e; }
+        .modal .btn-confirm-del { background: #e74c3c; color: #fff; }
+        .modal .btn-confirm-del:hover { background: #c0392b; }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div class="brand"><a href="/">个人主页 · 后台管理</a></div>
+        <div class="user-area">
+            <span id="userName">管理员</span>
+            <a href="/" style="color:#bdc3c7;font-size:13px;">查看前台</a>
+            <button id="logoutBtn" class="btn-logout">退出登录</button>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <button data-tab="list" class="active">文章列表</button>
+        <button data-tab="add">添加文章</button>
+    </div>
+
+    <div class="container">
+        <!-- 文章列表 -->
+        <div id="panel-list" class="panel card active">
+            <div class="toolbar">
+                <input type="text" id="searchKeyword" placeholder="按标题检索…" maxlength="100">
+                <select id="searchCategory">
+                    <option value="">全部分类</option>
+                    <option value="博客">博客</option>
+                    <option value="学习笔记">学习笔记</option>
+                    <option value="生活感悟">生活感悟</option>
+                </select>
+                <button class="btn btn-primary" id="searchBtn">检索</button>
+                <button class="btn btn-ghost" id="resetBtn">重置</button>
+                <div style="flex:1"></div>
+                <button class="btn btn-danger" id="batchDelBtn" disabled>批量删除</button>
+            </div>
+            <div class="batch-bar">
+                <label><input type="checkbox" id="checkAll"> 全选</label>
+                <span id="selectedCount" style="margin-left:10px;">已选 0 篇</span>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:36px;"></th>
+                        <th style="width:60px;">ID</th>
+                        <th>标题</th>
+                        <th style="width:90px;">类别</th>
+                        <th style="width:180px;">标签</th>
+                        <th style="width:150px;">发布时间</th>
+                        <th style="width:90px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="listBody"></tbody>
+            </table>
+            <div class="pager">
+                <button id="prevPage">上一页</button>
+                <span class="info" id="pageInfo"></span>
+                <button id="nextPage">下一页</button>
+            </div>
+        </div>
+
+        <!-- 添加文章 -->
+        <div id="panel-add" class="panel card">
+            <form id="articleForm">
+                <div class="form-group">
+                    <label for="f-title">标题 <span class="req">*</span></label>
+                    <input type="text" id="f-title" maxlength="100" placeholder="请输入文章标题（≤ 100 字符）">
+                    <div class="char-count"><span id="titleCount">0</span>/100</div>
+                </div>
+                <div class="form-group">
+                    <label for="f-category">类别 <span class="req">*</span></label>
+                    <select id="f-category">
+                        <option value="">请选择类别</option>
+                        <option value="博客">博客</option>
+                        <option value="学习笔记">学习笔记</option>
+                        <option value="生活感悟">生活感悟</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="f-content">内容 <span class="req">*</span></label>
+                    <textarea id="f-content" placeholder="支持基本的 HTML 排版：段落、加粗、列表、链接、图片等（≤ 50,000 字符）"></textarea>
+                    <div class="char-count"><span id="contentCount">0</span>/50000</div>
+                </div>
+                <div class="form-group">
+                    <label for="f-tags">标签（选填）</label>
+                    <input type="text" id="f-tags" maxlength="150" placeholder="多个标签用逗号分隔，最多 5 个，每项 ≤ 20 字符">
+                    <div class="hint">仅允许中文/英文/数字/下划线/连字符，自动去重</div>
+                </div>
+                <button type="submit" class="btn-submit" id="submitBtn">发布文章</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 删除二次确认弹窗 -->
+    <div class="modal-mask" id="confirmModal">
+        <div class="modal">
+            <h3 id="modalTitle">确认删除</h3>
+            <p id="modalDesc">确定要删除以下文章吗？删除后前台将立即下架，且不可恢复。</p>
+            <span class="target-title" id="modalTarget"></span>
+            <div class="btns">
+                <button class="btn-cancel" id="modalCancel">取消</button>
+                <button class="btn-confirm-del" id="modalConfirm">确认删除</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-wrap" id="toastWrap"></div>
+
+    <script>
+        (function () {
+            'use strict';
+            var csrfToken = '';
+            var allArticles = [];     // 当前检索结果全集
+            var page = 1;
+            var pageSize = 10;
+            var pendingDelete = null; // { ids: [...], titles: [...] }
+            var submitLocked = false;
+
+            var $ = function (id) { return document.getElementById(id); };
+
+            /* ---------- 工具 ---------- */
+            function esc(s) {
+                return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+            function toast(msg, type) {
+                var el = document.createElement('div');
+                el.className = 'toast' + (type ? ' ' + type : '');
+                el.textContent = msg;
+                $('toastWrap').appendChild(el);
+                setTimeout(function () { el.remove(); }, 3200);
+            }
+            function showError(msg) {
+                toast(msg, 'error');
+            }
+            // 会话过期 / 无权限 → 跳转登录页
+            function handleAuth(res) {
+                if (res.status === 401) {
+                    location.href = '/admin/login.html?next=' + encodeURIComponent('/admin/dashboard.html');
+                    return true;
+                }
+                if (res.status === 403) {
+                    showError('安全校验失败，请刷新页面重试');
+                    return true;
+                }
+                return false;
+            }
+            function api(url, opts) {
+                opts = opts || {};
+                opts.headers = opts.headers || {};
+                opts.headers['X-CSRF-Token'] = csrfToken;
+                if (opts.body && typeof opts.body !== 'string') {
+                    opts.headers['Content-Type'] = 'application/json';
+                    opts.body = JSON.stringify(opts.body);
+                }
+                return fetch(url, opts).then(function (r) {
+                    return r.json().then(function (d) {
+                        if (handleAuth(r)) throw new Error('AUTH');
+                        return { status: r.status, data: d };
+                    });
+                });
+            }
+
+            /* ---------- 初始化 ---------- */
+            function init() {
+                fetch('/api/auth/status')
+                    .then(function (r) { return r.json(); })
+                    .then(function (s) {
+                        if (!s.loggedIn) {
+                            location.href = '/admin/login.html?next=' + encodeURIComponent('/admin/dashboard.html');
+                            return;
+                        }
+                        $('userName').textContent = s.username || '管理员';
+                        return fetch('/api/csrf-token').then(function (r) { return r.json(); });
+                    })
+                    .then(function (d) {
+                        if (d && d.csrfToken) csrfToken = d.csrfToken;
+                        loadList();
+                    })
+                    .catch(function () {});
+            }
+
+            /* ---------- 文章列表（检索 / 分页） ---------- */
+            function loadList() {
+                var kw = encodeURIComponent($('searchKeyword').value.trim());
+                var cat = encodeURIComponent($('searchCategory').value);
+                api('/api/admin/articles?keyword=' + kw + '&category=' + cat)
+                    .then(function (r) {
+                        if (r.status !== 200) { showError(r.data.message || '加载失败'); return; }
+                        allArticles = r.data.articles;
+                        page = 1;
+                        renderList();
+                    })
+                    .catch(function () {});
+            }
+            function renderList() {
+                var body = $('listBody');
+                var total = allArticles.length;
+                var pages = Math.max(1, Math.ceil(total / pageSize));
+                if (page > pages) page = pages;
+                var start = (page - 1) * pageSize;
+                var items = allArticles.slice(start, start + pageSize);
+                if (!items.length) {
+                    body.innerHTML = '<tr><td colspan="7"><div class="empty-tip">暂无文章，去「添加文章」发布第一篇吧</div></td></tr>';
+                } else {
+                    body.innerHTML = items.map(function (a) {
+                        var tags = a.tags ? a.tags.split(',').map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; }).join('') : '<span style="color:#bdc3c7">—</span>';
+                        return '<tr>' +
+                            '<td><input type="checkbox" class="row-check" value="' + a.id + '"></td>' +
+                            '<td>' + a.id + '</td>' +
+                            '<td><a href="/article.html?id=' + a.id + '" target="_blank" style="color:#2c3e50;text-decoration:none;">' + esc(a.title) + '</a></td>' +
+                            '<td>' + esc(a.category) + '</td>' +
+                            '<td>' + tags + '</td>' +
+                            '<td style="color:#7f8c8d;">' + esc(a.created_at) + '</td>' +
+                            '<td><button class="btn-del" data-id="' + a.id + '" data-title="' + esc(a.title).replace(/"/g, '&quot;') + '">删除</button></td>' +
+                            '</tr>';
+                    }).join('');
+                }
+                $('pageInfo').textContent = '共 ' + total + ' 篇 · 第 ' + page + '/' + pages + ' 页';
+                $('prevPage').disabled = page <= 1;
+                $('nextPage').disabled = page >= pages;
+                $('checkAll').checked = false;
+                updateSelectedCount();
+            }
+
+            function selectedIds() {
+                var checks = document.querySelectorAll('.row-check:checked');
+                var ids = [];
+                checks.forEach(function (c) { ids.push(Number(c.value)); });
+                return ids;
+            }
+            function updateSelectedCount() {
+                var n = selectedIds().length;
+                $('selectedCount').textContent = '已选 ' + n + ' 篇';
+                $('batchDelBtn').disabled = n === 0;
+            }
+
+            /* ---------- 删除二次确认 ---------- */
+            function openConfirm(ids, titles) {
+                pendingDelete = { ids: ids, titles: titles };
+                $('modalTarget').textContent = titles.join('、');
+                $('modalDesc').textContent = ids.length > 1
+                    ? '确定要删除选中的 ' + ids.length + ' 篇文章吗？删除后前台将立即下架，且不可恢复。'
+                    : '确定要删除以下文章吗？删除后前台将立即下架，且不可恢复。';
+                $('confirmModal').classList.add('show');
+            }
+            function closeConfirm() {
+                pendingDelete = null;
+                $('confirmModal').classList.remove('show');
+            }
+            function doDelete(ids) {
+                var url = ids.length === 1
+                    ? '/api/admin/articles/' + ids[0]
+                    : '/api/admin/articles/batch-delete';
+                var opts = ids.length === 1
+                    ? { method: 'DELETE' }
+                    : { method: 'POST', body: { ids: ids } };
+                api(url, opts)
+                    .then(function (r) {
+                        if (r.status === 200) {
+                            toast(r.data.message || '删除成功');
+                            loadList();
+                        } else {
+                            showError(r.data.message || '操作失败');
+                        }
+                    })
+                    .catch(function () {});
+            }
+
+            /* ---------- 添加文章 ---------- */
+            function countChars() {
+                $('titleCount').textContent = $('f-title').value.length;
+                var c = $('f-content').value.length;
+                $('contentCount').textContent = c;
+                $('contentCount').parentElement.classList.toggle('over', c > 50000);
+            }
+            function submitArticle() {
+                if (submitLocked) return;
+                var title = $('f-title').value.trim();
+                var category = $('f-category').value;
+                var content = $('f-content').value;
+                var tags = $('f-tags').value.trim();
+                // 前端校验（REQ-14 / BC-12 / BC-14 / BC-16）
+                if (!title) { showError('标题不能为空'); return; }
+                if (title.length > 100) { showError('标题不能超过 100 个字符'); return; }
+                if (!category) { showError('请选择有效类别'); return; }
+                if (!content.trim() && !content.replace(/<[^>]*>/g, '').trim()) { showError('内容不能为空'); return; }
+                if (content.length > 50000) { showError('内容不能超过 50,000 个字符'); return; }
+                submitLocked = true;
+                var btn = $('submitBtn');
+                btn.disabled = true;
+                btn.textContent = '发布中...';
+                api('/api/admin/articles', { method: 'POST', body: { title: title, category: category, content: content, tags: tags } })
+                    .then(function (r) {
+                        if (r.status === 200) {
+                            toast(r.data.message || '发布成功');
+                            $('articleForm').reset();
+                            countChars();
+                            switchTab('list');
+                            loadList();
+                        } else {
+                            showError(r.data.message || '发布失败，请稍后重试');
+                        }
+                    })
+                    .catch(function () {})
+                    .finally(function () {
+                        submitLocked = false;
+                        btn.disabled = false;
+                        btn.textContent = '发布文章';
+                    });
+            }
+
+            /* ---------- Tab 切换 ---------- */
+            function switchTab(name) {
+                document.querySelectorAll('.tabs button').forEach(function (b) {
+                    b.classList.toggle('active', b.getAttribute('data-tab') === name);
+                });
+                $('panel-list').classList.toggle('active', name === 'list');
+                $('panel-add').classList.toggle('active', name === 'add');
+                if (name === 'add') countChars();
+            }
+
+            /* ---------- 事件绑定 ---------- */
+            document.querySelectorAll('.tabs button').forEach(function (b) {
+                b.addEventListener('click', function () { switchTab(b.getAttribute('data-tab')); });
+            });
+            $('searchBtn').addEventListener('click', loadList);
+            $('resetBtn').addEventListener('click', function () {
+                $('searchKeyword').value = '';
+                $('searchCategory').value = '';
+                loadList();
+            });
+            $('searchKeyword').addEventListener('keydown', function (e) { if (e.key === 'Enter') loadList(); });
+            $('prevPage').addEventListener('click', function () { if (page > 1) { page--; renderList(); } });
+            $('nextPage').addEventListener('click', function () { if (page * pageSize < allArticles.length) { page++; renderList(); } });
+            $('checkAll').addEventListener('change', function () {
+                document.querySelectorAll('.row-check').forEach(function (c) { c.checked = $('checkAll').checked; });
+                updateSelectedCount();
+            });
+            $('listBody').addEventListener('change', function (e) {
+                if (e.target.classList.contains('row-check')) updateSelectedCount();
+            });
+            $('listBody').addEventListener('click', function (e) {
+                var btn = e.target.closest('.btn-del');
+                if (btn) {
+                    var id = Number(btn.getAttribute('data-id'));
+                    var title = btn.getAttribute('data-title');
+                    openConfirm([id], [title]);
+                }
+            });
+            $('batchDelBtn').addEventListener('click', function () {
+                var ids = selectedIds();
+                if (!ids.length) return;
+                var titles = [];
+                allArticles.forEach(function (a) {
+                    if (ids.indexOf(a.id) !== -1) titles.push(a.title);
+                });
+                openConfirm(ids, titles);
+            });
+            $('modalCancel').addEventListener('click', closeConfirm);
+            $('confirmModal').addEventListener('click', function (e) {
+                if (e.target === $('confirmModal')) closeConfirm();
+            });
+            $('modalConfirm').addEventListener('click', function () {
+                if (!pendingDelete) return;
+                var ids = pendingDelete.ids.slice();
+                closeConfirm();
+                doDelete(ids);
+            });
+            $('logoutBtn').addEventListener('click', function () {
+                fetch('/api/logout', { method: 'POST' }).finally(function () {
+                    location.href = '/admin/login.html';
+                });
+            });
+            $('articleForm').addEventListener('submit', function (e) {
+                e.preventDefault();
+                submitArticle();
+            });
+            $('f-title').addEventListener('input', countChars);
+            $('f-content').addEventListener('input', countChars);
+
+            init();
+        })();
+    </script>
+</body>
+</html>

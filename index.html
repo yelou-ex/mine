@@ -180,16 +180,51 @@
             background-color: #d5dbdb;
         }
         
+        .categories ul li a.active {
+            background-color: #3498db;
+            color: #fff;
+        }
+        
         .recent-posts li {
             margin-bottom: 10px;
             padding-bottom: 10px;
             border-bottom: 1px solid #ecf0f1;
+            list-style: none;
         }
         
         .recent-posts li:last-child {
             margin-bottom: 0;
             padding-bottom: 0;
             border-bottom: none;
+        }
+        
+        .recent-posts li a {
+            color: #2c3e50;
+        }
+        
+        .recent-posts li a:hover {
+            color: #3498db;
+        }
+        
+        /* 标签 */
+        .post-tags .tag {
+            display: inline-block;
+            background-color: #eaf2f8;
+            color: #2980b9;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 12px;
+            margin: 0 4px 4px 0;
+        }
+        
+        /* 加载提示与空状态 */
+        .post-tip {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 40px 20px;
+            text-align: center;
+            color: #7f8c8d;
         }
         
         /* 页脚 */
@@ -230,7 +265,7 @@
                 <div class="logo">Yelou个人博客</div>
                 <nav>
                     <ul>
-                        <li><a href="#">首页</a></li>
+                        <li><a href="index.html">首页</a></li>
                         <li><a href="introduce.html">关于我</a></li>
                     </ul>
                 </nav>
@@ -241,43 +276,9 @@
     <div class="container">
         <div class="main-content">
             <div class="blog-posts">
-                <article class="post">
-                    <h2 class="post-title"><a href="#">个人基本信息&nbsp;</a></h2>
-                    <div class="post-meta">
-                        <span>发布于: 2023年10月15日</span> | 
-                        <span>分类: <a href="#">博客</a></span>
-                    </div>
-                    <div class="post-content">
-                        <p>欢迎来到我的个人博客！我叫杨楼，在这里我将分享我的生活、学习和工作中的点点滴滴。无论你是我的朋友、同学、老师，还是偶然路过的访客，都希望这里的内容能够给你带来帮助或启发。</p>
-                        <p>我会在这里记录我的成长历程，分享有用的知识和经验。如果你对某些内容感兴趣，或者有任何问题或建议，欢迎随时联系我！</p>
-                  </div>
-                    <a href="introduce.html" class="read-more">阅读更多</a>
-                </article>
-                
-                <article class="post">
-                  <h2 class="post-title"><a href="#">我的学习之路</a></h2>
-                    <div class="post-meta">
-                        <span>发布于: 2023年10月10日</span> | 
-                        <span>分类: <a href="#">博客&nbsp;</a></span>
-                    </div>
-                    <div class="post-content">
-                        <p>这部分记录了我的部分成长经历&nbsp;</p>
-                        <p>在这里，我将分享我的成长曲线、兴趣分布图等。如果你有任何问题或建议，我很乐意与你交流！</p>
-                    </div>
-                    <a href="myway.html" class="read-more">阅读更多</a>
-                </article>
-                
-                <article class="post">
-                    <h2 class="post-title"><a href="#">一路所获&nbsp;</a></h2>
-                    <div class="post-meta">
-                        <span>发布于: 2023年10月5日</span> | 
-                        <span>分类: <a href="#">博客&nbsp;</a></span>
-                    </div>
-                    <div class="post-content">
-                        <p>这里是一些我曾经获得的荣誉&nbsp;</p>
-                    </div>
-                    <a href="honor.html" class="read-more">阅读更多</a>
-                </article>
+                <div id="posts">
+                    <div class="post-tip">文章加载中…</div>
+                </div>
             </div>
             
             <aside class="sidebar">
@@ -289,17 +290,18 @@
                 
                 <div class="sidebar-widget categories">
                     <h3 class="widget-title">分类</h3>
-                    <ul>
-                        <li><a href="#">博客</a></li>
-                        <li><a href="#">学习笔记</a></li>
-                        <li><a href="#">生活感悟</a></li>
+                    <ul id="categoryList">
+                        <li><a href="index.html" data-cat="">全部</a></li>
+                        <li><a href="index.html?category=博客" data-cat="博客">博客</a></li>
+                        <li><a href="index.html?category=学习笔记" data-cat="学习笔记">学习笔记</a></li>
+                        <li><a href="index.html?category=生活感悟" data-cat="生活感悟">生活感悟</a></li>
                     </ul>
                 </div>
                 
                 <div class="sidebar-widget recent-posts">
                     <h3 class="widget-title">最近文章</h3>
-                    <ul>
-                        <li><a href="#">敬请期待</a></li>
+                    <ul id="recentList">
+                        <li><a href="#">加载中…</a></li>
                     </ul>
                 </div>
             </aside>
@@ -321,5 +323,78 @@
             </div>
         </div>
     </footer>
+
+    <script>
+        // 前台文章动态渲染：从后端 API 加载（内容由后台发布入库）
+        (function () {
+            function esc(s) {
+                return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+            function getCategory() {
+                var m = location.search.match(/[?&]category=([^&]+)/);
+                if (!m) return '';
+                try { return decodeURIComponent(m[1]); } catch (e) { return ''; }
+            }
+            var category = getCategory();
+
+            // 标记当前激活分类
+            document.querySelectorAll('#categoryList a').forEach(function (a) {
+                if ((a.getAttribute('data-cat') || '') === category) a.classList.add('active');
+            });
+
+            function fmtDate(s) {
+                return String(s || '').replace('T', ' ').slice(0, 16);
+            }
+
+            function renderArticles(articles) {
+                var box = document.getElementById('posts');
+                if (!articles.length) {
+                    box.innerHTML = '<div class="post-tip">暂无文章' + (category ? '（当前分类下）' : '') + '，敬请期待</div>';
+                    return;
+                }
+                box.innerHTML = articles.map(function (a) {
+                    var tags = (a.tags || '').split(',').filter(Boolean)
+                        .map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; })
+                        .join('');
+                    return '<article class="post">' +
+                        '<h2 class="post-title"><a href="article.html?id=' + a.id + '">' + esc(a.title) + '</a></h2>' +
+                        '<div class="post-meta">' +
+                        '<span>发布于: ' + fmtDate(a.created_at) + '</span> | ' +
+                        '<span>分类: <a href="index.html?category=' + encodeURIComponent(a.category) + '">' + esc(a.category) + '</a></span>' +
+                        (tags ? ' | <span class="post-tags">' + tags + '</span>' : '') +
+                        '</div>' +
+                        '<a href="article.html?id=' + a.id + '" class="read-more">阅读更多</a>' +
+                        '</article>';
+                }).join('');
+            }
+
+            function renderRecent(articles) {
+                var ul = document.getElementById('recentList');
+                if (!articles.length) {
+                    ul.innerHTML = '<li><a href="#">敬请期待</a></li>';
+                    return;
+                }
+                ul.innerHTML = articles.slice(0, 5).map(function (a) {
+                    return '<li><a href="article.html?id=' + a.id + '">' + esc(a.title) + '</a></li>';
+                }).join('');
+            }
+
+            var url = '/api/articles' + (category ? '?category=' + encodeURIComponent(category) : '');
+            fetch(url)
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    renderArticles(d.articles || []);
+                    // 最近文章取全量最新 5 篇
+                    return fetch('/api/articles').then(function (r) { return r.json(); });
+                })
+                .then(function (d) { renderRecent(d.articles || []); })
+                .catch(function () {
+                    document.getElementById('posts').innerHTML =
+                        '<div class="post-tip">文章加载失败，请稍后刷新重试</div>';
+                });
+        })();
+    </script>
 </body>
 </html>

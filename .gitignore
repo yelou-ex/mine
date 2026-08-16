@@ -1,0 +1,13 @@
+# 依赖
+node_modules/
+
+# 运行时数据（SQLite 数据库、会话密钥等，含敏感信息，勿提交）
+data/
+
+# 本机 npm 缓存
+.npm-cache/
+
+# 日志与系统文件
+*.log
+.DS_Store
+Thumbs.db

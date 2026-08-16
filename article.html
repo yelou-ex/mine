@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文章详情 - yelou的个人博客</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Arial', 'Microsoft YaHei', sans-serif; }
+        body {
+            background-image: url("picture/d3SJaPgZhqMVOQv.thumb.png");
+            background-size: cover;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
+            line-height: 1.7;
+        }
+        a { text-decoration: none; color: #3498db; }
+        a:hover { color: #2980b9; }
+        .container { max-width: 900px; margin: 0 auto; padding: 0 20px; }
+        header {
+            background-color: #fff; opacity: 0.85;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 20px 0;
+        }
+        .header-content { display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 24px; font-weight: bold; color: #2c3e50; }
+        nav ul { display: flex; list-style: none; }
+        nav ul li { margin-left: 20px; }
+        nav ul li a { color: #2c3e50; font-weight: 500; padding: 5px 10px; border-radius: 4px; transition: background-color 0.3s; }
+        nav ul li a:hover { background-color: #ecf0f1; }
+        .article-wrap {
+            background-color: #fff; opacity: 0.95;
+            border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 36px 40px; margin: 30px 0;
+        }
+        .article-title { color: #2c3e50; font-size: 26px; margin-bottom: 12px; }
+        .article-meta { color: #7f8c8d; font-size: 14px; margin-bottom: 8px; }
+        .article-tags { margin-bottom: 22px; }
+        .article-tags .tag {
+            display: inline-block; background-color: #eaf2f8; color: #2980b9;
+            border-radius: 4px; padding: 2px 10px; font-size: 12px; margin: 0 4px 4px 0;
+        }
+        .article-body { border-top: 1px solid #ecf0f1; padding-top: 24px; font-size: 15.5px; color: #34495e; word-break: break-word; }
+        .article-body img { max-width: 100%; height: auto; border-radius: 6px; }
+        .article-body a { word-break: break-all; }
+        .article-body blockquote {
+            border-left: 4px solid #3498db; background: #f8f9fa;
+            padding: 10px 16px; margin: 14px 0; color: #7f8c8d;
+        }
+        .article-body pre {
+            background: #2c3e50; color: #ecf0f1; border-radius: 6px;
+            padding: 14px 16px; overflow-x: auto; margin: 14px 0;
+        }
+        .article-body code { font-family: Consolas, monospace; }
+        .article-body h1,.article-body h2,.article-body h3,.article-body h4 { color: #2c3e50; margin: 20px 0 10px; }
+        .back-bar { margin: 24px 0 0; }
+        .back-bar a { color: #7f8c8d; font-size: 14px; }
+        .back-bar a:hover { color: #3498db; }
+        footer { background-color: #2c3e50; color: #ecf0f1; padding: 30px 0; text-align: center; }
+        .copyright { font-size: 14px; }
+        .post-tip { background-color: #fff; border-radius: 8px; padding: 40px 20px; text-align: center; color: #7f8c8d; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo"><a href="index.html" style="color:#2c3e50;">Yelou个人博客</a></div>
+                <nav>
+                    <ul>
+                        <li><a href="index.html">首页</a></li>
+                        <li><a href="introduce.html">关于我</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="articleWrap">
+            <div class="post-tip">文章加载中…</div>
+        </div>
+        <div class="back-bar"><a href="index.html">← 返回首页</a></div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <div class="copyright">
+                <p>© 2025 yelou的个人博客. 保留所有权利.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // 文章详情：从后端 API 加载；渲染前做前端白名单二次过滤（防 XSS 第二道防线）
+        (function () {
+            function esc(s) {
+                return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+            // 前端白名单渲染：移除脚本/iframe 等危险元素与事件属性
+            function safeRender(html) {
+                var tpl = document.createElement('template');
+                tpl.innerHTML = html;
+                tpl.content.querySelectorAll('script, iframe, object, embed, link, meta, style, form, input, button').forEach(function (n) { n.remove(); });
+                tpl.content.querySelectorAll('*').forEach(function (el) {
+                    Array.prototype.slice.call(el.attributes).forEach(function (attr) {
+                        var name = attr.name.toLowerCase();
+                        var val = attr.value.toLowerCase();
+                        if (name.indexOf('on') === 0) el.removeAttribute(attr.name);
+                        else if ((name === 'href' || name === 'src') && val.indexOf('javascript:') === 0) el.removeAttribute(attr.name);
+                    });
+                });
+                return tpl.innerHTML;
+            }
+            function fmtDate(s) {
+                return String(s || '').replace('T', ' ').slice(0, 16);
+            }
+            var id = (location.search.match(/[?&]id=(\d+)/) || [])[1];
+            if (!id) {
+                document.getElementById('articleWrap').innerHTML = '<div class="post-tip">文章不存在或已被删除</div>';
+            } else {
+                fetch('/api/articles/' + id)
+                    .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+                    .then(function (r) {
+                        var wrap = document.getElementById('articleWrap');
+                        if (r.status !== 200) {
+                            wrap.innerHTML = '<div class="post-tip">' + esc(r.data.message || '文章不存在或已被删除') + '</div>';
+                            return;
+                        }
+                        var a = r.data.article;
+                        var tags = (a.tags || '').split(',').filter(Boolean)
+                            .map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; })
+                            .join('');
+                        document.title = a.title + ' - yelou的个人博客';
+                        wrap.innerHTML =
+                            '<article class="article-wrap">' +
+                            '<h1 class="article-title">' + esc(a.title) + '</h1>' +
+                            '<div class="article-meta">发布于: ' + fmtDate(a.created_at) + ' | 分类: ' + esc(a.category) + '</div>' +
+                            (tags ? '<div class="article-tags">' + tags + '</div>' : '') +
+                            '<div class="article-body">' + safeRender(a.content) + '</div>' +
+                            '</article>';
+                    })
+                    .catch(function () {
+                        document.getElementById('articleWrap').innerHTML = '<div class="post-tip">文章加载失败，请稍后重试</div>';
+                    });
+            }
+        })();
+    </script>
+</body>
+</html>

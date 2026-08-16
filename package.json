@@ -1,0 +1,18 @@
+{
+  "name": "personal-website",
+  "version": "1.0.0",
+  "private": true,
+  "description": "个人主页网站",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
+    "docx": "^9.7.1",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "sanitize-html": "^2.17.7"
+  }
+}
