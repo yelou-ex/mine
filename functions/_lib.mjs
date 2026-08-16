@@ -189,9 +189,8 @@ export function sanitizeHtml(input) {
       if (name === 'style') continue;
       if (!allowed.has(name)) continue;
       const lv = val.trim().toLowerCase();
+      // 拦截 javascript:/data: 危险协议；其余（http/https/相对路径/锚点等）保留
       if ((name === 'href' || name === 'src') && (lv.startsWith('javascript:') || lv.startsWith('data:'))) continue;
-      if (name === 'href' && !/^(#|mailto:|https?:)/.test(lv) && !lv.startsWith('/')) continue;
-      if (name === 'src' && !/^(https?:|\/)/.test(lv)) continue;
       out += ` ${name}="${escapeAttr(val)}"`;
     }
     return /\/\s*$/.test(whole) ? `<${t}${out} />` : `<${t}${out}>`;
