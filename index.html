@@ -262,6 +262,19 @@
             padding-top: 20px;
             font-size: 14px;
         }
+        
+        /* 手机端适配（≤ 768px） */
+        @media (max-width: 768px) {
+            .header-content { flex-direction: column; gap: 12px; }
+            .logo { font-size: 20px; }
+            nav ul li { margin-left: 12px; }
+            .main-content { flex-direction: column; margin: 20px 0; }
+            .blog-posts { margin-right: 0; }
+            .post { padding: 16px; }
+            .post-title { font-size: 18px; }
+            .sidebar { margin-top: 8px; }
+            .footer-content { flex-direction: column; gap: 10px; }
+        }
     </style>
 </head>
 <body>

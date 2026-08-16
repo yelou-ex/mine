@@ -385,7 +385,8 @@ app.get('/api/admin/articles', (req, res) => {
   const keyword = typeof req.query.keyword === 'string' ? req.query.keyword.trim() : '';
   const category = typeof req.query.category === 'string' ? req.query.category.trim() : '';
   try {
-    let sql = 'SELECT id, title, category, tags, link, created_at FROM articles WHERE 1=1';
+    // 后台列表只显示可管理的普通文章（link 非空的固定页面不可在后台管理）
+    let sql = "SELECT id, title, category, tags, link, created_at FROM articles WHERE link = ''";
     const params = [];
     if (keyword) {
       sql += ' AND title LIKE ?';
