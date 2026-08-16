@@ -54,9 +54,11 @@ const SANITIZE_OPTIONS = {
 
 /* ================= Session Secret（首次启动生成并持久化） ================= */
 function getSessionSecret() {
-  const file = path.join(__dirname, 'data', '.session-secret');
+  const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, 'data');
+  const file = path.join(dataDir, '.session-secret');
   if (fs.existsSync(file)) return fs.readFileSync(file, 'utf8').trim();
   const secret = crypto.randomBytes(32).toString('hex');
+  fs.mkdirSync(dataDir, { recursive: true });
   fs.writeFileSync(file, secret);
   return secret;
 }
@@ -74,6 +76,9 @@ app.use((req, res, next) => {
 
 // 生产环境强制 HTTPS（HSTS），本地 http 直连不受影响
 if (IS_PROD) {
+  // 部署平台（Railway/Render/Zeabur 等）在应用前有 TLS 终止代理，
+  // 信任一级代理以便正确识别 HTTPS 协议与客户端 IP
+  app.set('trust proxy', 1);
   app.use((req, res, next) => {
     if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
       res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');

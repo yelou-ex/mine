@@ -11,7 +11,10 @@ const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const Database = require('better-sqlite3');
 
-const DATA_DIR = path.join(__dirname, 'data');
+// 数据目录：默认项目内 ./data；部署到 Node 平台时可用 DATA_DIR 环境变量指向持久化卷
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(__dirname, 'data');
 const DB_PATH = path.join(DATA_DIR, 'website.db');
 
 // 默认管理员（仅当管理员表为空时创建；生产环境请立即修改密码）
