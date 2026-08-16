@@ -5,7 +5,9 @@
   "description": "个人主页网站",
   "license": "UNLICENSED",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node test-e2e.mjs",
+    "test:cf": "node test-functions.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
