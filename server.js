@@ -452,6 +452,31 @@ app.post('/api/admin/articles', requireAdminWrite, (req, res) => {
   }
 });
 
+// 更新文章（REQ-25 / REQ-26）
+app.put('/api/admin/articles/:id', requireAdminWrite, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ message: '文章不存在或已被删除' });
+  }
+  try {
+    const result = validateArticle(req.body);
+    if (result.error) return res.status(400).json({ message: result.error });
+    const { title, content, category, tags } = result.value;
+
+    // 验证文章存在
+    const row = db.prepare('SELECT id FROM articles WHERE id = ?').get(id);
+    if (!row) return res.status(404).json({ message: '文章不存在或已被删除' });
+
+    db.prepare(
+      'UPDATE articles SET title = ?, content = ?, category = ?, tags = ? WHERE id = ?'
+    ).run(title, content, category, tags, id);
+    res.json({ success: true, message: '更新成功' });
+  } catch (e) {
+    console.error('[admin.articles.update]', e);
+    res.status(500).json({ message: '更新失败，请稍后重试' });
+  }
+});
+
 // 删除文章（REQ-21 / REQ-22 / BC-23 / BC-26）
 app.delete('/api/admin/articles/:id', requireAdminWrite, (req, res) => {
   const id = Number(req.params.id);

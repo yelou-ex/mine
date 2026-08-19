@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>手机端API测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .error {
+            color: #e74c3c;
+        }
+        .success {
+            color: #27ae60;
+        }
+    </style>
+</head>
+<body>
+    <h2>📱 手机端API测试工具</h2>
+
+    <div class="test-section">
+        <h3>1. 检查登录状态</h3>
+        <button onclick="checkAuth()">检查登录</button>
+        <pre id="authResult"></pre>
+    </div>
+
+    <div class="test-section">
+        <h3>2. 获取CSRF Token</h3>
+        <button onclick="getCSRF()">获取Token</button>
+        <pre id="csrfResult"></pre>
+    </div>
+
+    <div class="test-section">
+        <h3>3. 加载文章列表（手机端后台API）</h3>
+        <button onclick="loadAdminArticles()">加载后台文章</button>
+        <pre id="adminResult"></pre>
+    </div>
+
+    <div class="test-section">
+        <h3>4. 加载文章列表（前台API）</h3>
+        <button onclick="loadPublicArticles()">加载前台文章</button>
+        <pre id="publicResult"></pre>
+    </div>
+
+    <div class="test-section">
+        <h3>5. 直接查询数据库（通过服务器）</h3>
+        <button onclick="checkDatabase()">查询数据库</button>
+        <pre id="dbResult"></pre>
+    </div>
+
+    <script>
+        var csrfToken = '';
+
+        function showResult(elementId, data, isError) {
+            var el = document.getElementById(elementId);
+            if (isError) {
+                el.innerHTML = '<span class="error">❌ 错误:</span>\n' + JSON.stringify(data, null, 2);
+            } else {
+                el.innerHTML = '<span class="success">✅ 成功:</span>\n' + JSON.stringify(data, null, 2);
+            }
+        }
+
+        function checkAuth() {
+            fetch('/api/auth/status')
+                .then(function (r) { return r.json(); })
+                .then(function (s) {
+                    showResult('authResult', s, false);
+                })
+                .catch(function (e) {
+                    showResult('authResult', { error: e.message }, true);
+                });
+        }
+
+        function getCSRF() {
+            fetch('/api/csrf-token')
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    csrfToken = d.csrfToken;
+                    showResult('csrfResult', { csrfToken: csrfToken }, false);
+                })
+                .catch(function (e) {
+                    showResult('csrfResult', { error: e.message }, true);
+                });
+        }
+
+        function loadAdminArticles() {
+            var kw = encodeURIComponent('');
+            var cat = encodeURIComponent('');
+            fetch('/api/admin/articles?keyword=' + kw + '&category=' + cat)
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    showResult('adminResult', d, r.status !== 200);
+                })
+                .catch(function (e) {
+                    showResult('adminResult', { error: e.message }, true);
+                });
+        }
+
+        function loadPublicArticles() {
+            fetch('/api/articles')
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    showResult('publicResult', d, r.status !== 200);
+                })
+                .catch(function (e) {
+                    showResult('publicResult', { error: e.message }, true);
+                });
+        }
+
+        function checkDatabase() {
+            fetch('/api/admin/articles')
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var articles = data.articles || [];
+                    var allLinks = articles.map(function (a) { return { id: a.id, title: a.title, link: a.link }; });
+
+                    // 通过前台API获取所有文章
+                    fetch('/api/articles')
+                        .then(function (r2) { return r2.json(); })
+                        .then(function (publicData) {
+                            var publicArticles = publicData.articles || [];
+                            var allPublic = publicArticles.map(function (a) { return { id: a.id, title: a.title, link: a.link }; });
+
+                            var result = {
+                                '后台API返回的文章': allLinks,
+                                '前台API返回的文章': allPublic,
+                                '差异': {
+                                    '后台独有': allLinks.filter(function (a) {
+                                        return !allPublic.some(function (p) { return p.id === a.id; });
+                                    }),
+                                    '前台独有': allPublic.filter(function (a) {
+                                        return !allLinks.some(function (l) { return l.id === a.id; });
+                                    })
+                                }
+                            };
+                            showResult('dbResult', result, false);
+                        })
+                        .catch(function (e2) {
+                            showResult('dbResult', { error: '前台API错误: ' + e2.message }, true);
+                        });
+                })
+                .catch(function (e) {
+                    showResult('dbResult', { error: e.message }, true);
+                });
+        }
+    </script>
+</body>
+</html>

@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="cache-control" content="no-cache, no-store, must-revalidate">
+    <meta name="pragma" content="no-cache">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>后台管理 - 个人主页</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Arial', 'Microsoft YaHei', sans-serif; }
@@ -106,6 +111,17 @@
             font-size: 12px;
         }
         .btn-del:hover { background: #f5b7b1; }
+        .btn-edit {
+            background: #3498db;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            padding: 4px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-right: 6px;
+        }
+        .btn-edit:hover { background: #2980b9; }
         .empty-tip { text-align: center; color: #95a5a6; padding: 40px 0; font-size: 14px; }
         /* 分页 */
         .pager { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 14px; font-size: 13px; color: #7f8c8d; }
@@ -169,6 +185,10 @@
             .batch-bar { font-size: 12px; }
             /* 小屏隐藏次要列（ID/标签） */
             .hide-mobile { display: none; }
+            /* 小屏操作列只显示删除 */
+            @media (max-width: 480px) {
+                .btn-edit { display: none; }
+            }
             .modal { padding: 20px 16px; }
             .pager { justify-content: center; }
             .form-group textarea { min-height: 200px; }
@@ -277,6 +297,7 @@
         <!-- 添加文章 -->
         <div id="panel-add" class="panel card">
             <form id="articleForm">
+                <input type="hidden" id="f-id" value="">
                 <div class="form-group">
                     <label for="f-title">标题 <span class="req">*</span></label>
                     <input type="text" id="f-title" maxlength="100" placeholder="请输入文章标题（≤ 100 字符）">
@@ -353,6 +374,8 @@
             var pageSize = 10;
             var pendingDelete = null; // { ids: [...], titles: [...] }
             var submitLocked = false;
+            var editMode = false;     // true=编辑模式，false=添加模式
+            var editingId = null;     // 正在编辑的文章 ID
 
             var $ = function (id) { return document.getElementById(id); };
 
@@ -451,7 +474,7 @@
                             '<td>' + esc(a.category) + '</td>' +
                             '<td class="hide-mobile">' + tags + '</td>' +
                             '<td style="color:#7f8c8d;">' + esc(a.created_at) + '</td>' +
-                            '<td><button class="btn-del" data-id="' + a.id + '" data-title="' + esc(a.title).replace(/"/g, '&quot;') + '">删除</button></td>' +
+                            '<td><button class="btn-edit" data-id="' + a.id + '" data-title="' + esc(a.title).replace(/"/g, '&quot;') + '" style="background:#3498db;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px;margin-right:6px;">编辑</button><button class="btn-del" data-id="' + a.id + '" data-title="' + esc(a.title).replace(/"/g, '&quot;') + '">删除</button></td>' +
                             '</tr>';
                     }).join('');
                 }
@@ -506,6 +529,68 @@
                     .catch(function () {});
             }
 
+            /* ---------- 编辑文章 ---------- */
+            function loadArticleForEdit(id) {
+                api('/api/articles/' + id)
+                    .then(function (r) {
+                        if (r.status !== 200) { showError(r.data.message || '加载失败'); return; }
+                        var a = r.data.article;
+                        $('f-id').value = a.id;
+                        $('f-title').value = a.title;
+                        $('f-category').value = a.category;
+                        $('f-content').value = a.content;
+                        $('f-tags').value = a.tags || '';
+                        editMode = true;
+                        editingId = id;
+                        $('submitBtn').textContent = '保存修改';
+                        switchTab('add');
+                        countChars();
+                        toast('正在编辑：' + a.title, 'warn');
+                    })
+                    .catch(function () {});
+            }
+            function cancelEdit() {
+                editMode = false;
+                editingId = null;
+                $('f-id').value = '';
+                $('articleForm').reset();
+                $('submitBtn').textContent = '发布文章';
+                countChars();
+            }
+            function updateArticle() {
+                if (submitLocked || !editingId) return;
+                var title = $('f-title').value.trim();
+                var category = $('f-category').value;
+                var content = $('f-content').value;
+                var tags = $('f-tags').value.trim();
+                // 前端校验
+                if (!title) { showError('标题不能为空'); return; }
+                if (title.length > 100) { showError('标题不能超过 100 个字符'); return; }
+                if (!category) { showError('请选择有效类别'); return; }
+                if (!content.trim() && !content.replace(/<[^>]*>/g, '').trim()) { showError('内容不能为空'); return; }
+                if (content.length > 50000) { showError('内容不能超过 50,000 个字符'); return; }
+                submitLocked = true;
+                var btn = $('submitBtn');
+                btn.disabled = true;
+                btn.textContent = '保存中...';
+                api('/api/admin/articles/' + editingId, { method: 'PUT', body: { title: title, category: category, content: content, tags: tags } })
+                    .then(function (r) {
+                        if (r.status === 200) {
+                            toast(r.data.message || '更新成功');
+                            cancelEdit();
+                            loadList();
+                        } else {
+                            showError(r.data.message || '更新失败，请稍后重试');
+                        }
+                    })
+                    .catch(function () {})
+                    .finally(function () {
+                        submitLocked = false;
+                        btn.disabled = false;
+                        btn.textContent = editMode ? '保存修改' : '发布文章';
+                    });
+            }
+
             /* ---------- 添加文章 ---------- */
             function countChars() {
                 $('titleCount').textContent = $('f-title').value.length;
@@ -557,6 +642,7 @@
                 $('panel-list').classList.toggle('active', name === 'list');
                 $('panel-add').classList.toggle('active', name === 'add');
                 if (name === 'add') countChars();
+                if (name === 'list' && editMode) cancelEdit();
             }
 
             /* ---------- 事件绑定 ---------- */
@@ -580,11 +666,16 @@
                 if (e.target.classList.contains('row-check')) updateSelectedCount();
             });
             $('listBody').addEventListener('click', function (e) {
-                var btn = e.target.closest('.btn-del');
-                if (btn) {
-                    var id = Number(btn.getAttribute('data-id'));
-                    var title = btn.getAttribute('data-title');
+                var delBtn = e.target.closest('.btn-del');
+                var editBtn = e.target.closest('.btn-edit');
+                if (delBtn) {
+                    var id = Number(delBtn.getAttribute('data-id'));
+                    var title = delBtn.getAttribute('data-title');
                     openConfirm([id], [title]);
+                }
+                if (editBtn) {
+                    var id = Number(editBtn.getAttribute('data-id'));
+                    loadArticleForEdit(id);
                 }
             });
             $('batchDelBtn').addEventListener('click', function () {
@@ -657,7 +748,11 @@
             });
             $('articleForm').addEventListener('submit', function (e) {
                 e.preventDefault();
-                submitArticle();
+                if (editMode) {
+                    updateArticle();
+                } else {
+                    submitArticle();
+                }
             });
             $('f-title').addEventListener('input', countChars);
             $('f-content').addEventListener('input', countChars);
