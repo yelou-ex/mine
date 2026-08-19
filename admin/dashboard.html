@@ -122,6 +122,10 @@
             margin-right: 6px;
         }
         .btn-edit:hover { background: #2980b9; }
+        /* 手机端操作按钮垂直排列 */
+        @media (max-width: 480px) {
+            .btn-edit, .btn-del { display: block; width: 100%; margin: 2px 0; text-align: center; }
+        }
         .empty-tip { text-align: center; color: #95a5a6; padding: 40px 0; font-size: 14px; }
         /* 分页 */
         .pager { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 14px; font-size: 13px; color: #7f8c8d; }
@@ -185,10 +189,6 @@
             .batch-bar { font-size: 12px; }
             /* 小屏隐藏次要列（ID/标签） */
             .hide-mobile { display: none; }
-            /* 小屏操作列只显示删除 */
-            @media (max-width: 480px) {
-                .btn-edit { display: none; }
-            }
             .modal { padding: 20px 16px; }
             .pager { justify-content: center; }
             .form-group textarea { min-height: 200px; }
