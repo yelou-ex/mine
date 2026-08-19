@@ -263,6 +263,112 @@
             font-size: 14px;
         }
         
+        /* 搜索框样式 */
+        .search-bar {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 16px 20px;
+            margin-bottom: 20px;
+        }
+        .search-box {
+            display: flex;
+            gap: 10px;
+        }
+        .search-input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .search-input:focus {
+            border-color: #3498db;
+        }
+        .search-btn {
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        .search-btn:hover {
+            background-color: #2980b9;
+        }
+        .clear-btn {
+            padding: 10px 16px;
+            background-color: #95a5a6;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        .clear-btn:hover {
+            background-color: #7f8c8d;
+        }
+        .active-filters {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .filter-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background-color: #eaf2f8;
+            color: #2980b9;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .filter-tag .remove {
+            cursor: pointer;
+            font-weight: bold;
+            opacity: 0.7;
+        }
+        .filter-tag .remove:hover {
+            opacity: 1;
+        }
+
+        /* 标签云样式 */
+        .tag-cloud {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .tag-item {
+            display: inline-block;
+            padding: 4px 12px;
+            background-color: #eaf2f8;
+            color: #2980b9;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid transparent;
+        }
+        .tag-item:hover {
+            background-color: #d5dbdb;
+            border-color: #3498db;
+        }
+        .tag-item.active {
+            background-color: #3498db;
+            color: #fff;
+        }
+        .tag-count {
+            font-size: 11px;
+            opacity: 0.8;
+            margin-left: 2px;
+        }
+
         /* 手机端适配（≤ 768px） */
         @media (max-width: 768px) {
             .header-content { flex-direction: column; gap: 12px; }
@@ -274,6 +380,8 @@
             .post-title { font-size: 18px; }
             .sidebar { margin-top: 8px; }
             .footer-content { flex-direction: column; gap: 10px; }
+            .search-box { flex-direction: column; }
+            .search-btn, .clear-btn { width: 100%; }
         }
     </style>
 </head>
@@ -293,6 +401,14 @@
     </header>
     
     <div class="container main-wrap">
+        <div class="search-bar">
+            <div class="search-box">
+                <input type="text" id="searchInput" class="search-input" placeholder="搜索文章标题...">
+                <button id="searchBtn" class="search-btn">搜索</button>
+                <button id="clearBtn" class="clear-btn" style="display:none;">清除</button>
+            </div>
+            <div id="activeFilters" class="active-filters"></div>
+        </div>
         <div class="main-content">
             <div class="blog-posts">
                 <div id="posts">
@@ -317,6 +433,13 @@
                     </ul>
                 </div>
                 
+                <div class="sidebar-widget">
+                    <h3 class="widget-title">标签云</h3>
+                    <div id="tagCloud" class="tag-cloud">
+                        <span class="tag-item">加载中…</span>
+                    </div>
+                </div>
+
                 <div class="sidebar-widget recent-posts">
                     <h3 class="widget-title">最近文章</h3>
                     <ul id="recentList">
@@ -351,12 +474,20 @@
                     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
                     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
             }
-            function getCategory() {
-                var m = location.search.match(/[?&]category=([^&]+)/);
+            function getQueryParam(name) {
+                var m = location.search.match(new RegExp('[?&]' + name + '=([^&]*)'));
                 if (!m) return '';
                 try { return decodeURIComponent(m[1]); } catch (e) { return ''; }
             }
-            var category = getCategory();
+
+            // 读取 URL 参数
+            var category = getQueryParam('category');
+            var keyword = getQueryParam('keyword');
+            var tag = getQueryParam('tag');
+
+            // 初始化搜索框显示
+            var searchInput = document.getElementById('searchInput');
+            if (keyword) searchInput.value = keyword;
 
             // 标记当前激活分类
             document.querySelectorAll('#categoryList a').forEach(function (a) {
@@ -367,17 +498,23 @@
                 return String(s || '').replace('T', ' ').slice(0, 16);
             }
 
+            // 渲染文章列表
             function renderArticles(articles) {
                 var box = document.getElementById('posts');
                 if (!articles.length) {
-                    box.innerHTML = '<div class="post-tip">暂无文章' + (category ? '（当前分类下）' : '') + '，敬请期待</div>';
+                    var tip = '暂无文章';
+                    if (category) tip += '（当前分类：' + esc(category) + '）';
+                    if (tag) tip += '（当前标签：' + esc(tag) + '）';
+                    if (keyword) tip += '（关键词：' + esc(keyword) + '）';
+                    tip += '，敬请期待';
+                    box.innerHTML = '<div class="post-tip">' + tip + '</div>';
                     return;
                 }
                 box.innerHTML = articles.map(function (a) {
                     // 有 link 的文章（如三个原有静态页面）点击进入静态页面，否则进入文章详情页
                     var href = a.link ? a.link : 'article.html?id=' + a.id;
                     var tags = (a.tags || '').split(',').filter(Boolean)
-                        .map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; })
+                        .map(function (t) { return '<span class="tag" data-tag="' + esc(t) + '">' + esc(t) + '</span>'; })
                         .join('');
                     return '<article class="post">' +
                         '<h2 class="post-title"><a href="' + href + '">' + esc(a.title) + '</a></h2>' +
@@ -392,6 +529,7 @@
                 }).join('');
             }
 
+            // 渲染最近文章
             function renderRecent(articles) {
                 var ul = document.getElementById('recentList');
                 if (!articles.length) {
@@ -404,19 +542,142 @@
                 }).join('');
             }
 
-            var url = '/api/articles' + (category ? '?category=' + encodeURIComponent(category) : '');
-            fetch(url)
-                .then(function (r) { return r.json(); })
-                .then(function (d) {
-                    renderArticles(d.articles || []);
-                    // 最近文章取全量最新 5 篇
-                    return fetch('/api/articles').then(function (r) { return r.json(); });
-                })
-                .then(function (d) { renderRecent(d.articles || []); })
-                .catch(function () {
-                    document.getElementById('posts').innerHTML =
-                        '<div class="post-tip">文章加载失败，请稍后刷新重试</div>';
+            // 渲染标签云
+            function renderTagCloud(tags) {
+                var container = document.getElementById('tagCloud');
+                if (!tags || !tags.length) {
+                    container.innerHTML = '<span style="color:#7f8c8d;font-size:13px;">暂无标签</span>';
+                    return;
+                }
+                container.innerHTML = tags.map(function (t) {
+                    var isActive = t.name === tag ? ' active' : '';
+                    return '<span class="tag-item' + isActive + '" data-tag="' + esc(t.name) + '">' +
+                        esc(t.name) +
+                        '<span class="tag-count">(' + t.count + ')</span>' +
+                        '</span>';
+                }).join('');
+            }
+
+            // 更新 URL 参数（不刷新页面）
+            function updateUrl() {
+                var params = [];
+                if (category) params.push('category=' + encodeURIComponent(category));
+                if (keyword) params.push('keyword=' + encodeURIComponent(keyword));
+                if (tag) params.push('tag=' + encodeURIComponent(tag));
+                var newUrl = 'index.html' + (params.length ? '?' + params.join('&') : '');
+                history.replaceState(null, '', newUrl);
+
+                // 更新搜索框显示
+                if (keyword) {
+                    searchInput.value = keyword;
+                    document.getElementById('clearBtn').style.display = '';
+                } else {
+                    searchInput.value = '';
+                    document.getElementById('clearBtn').style.display = 'none';
+                }
+
+                // 更新激活筛选标签显示
+                var filtersHtml = '';
+                if (category) filtersHtml += '<span class="filter-tag">分类: ' + esc(category) + ' <span class="remove" data-filter="category">×</span></span>';
+                if (tag) filtersHtml += '<span class="filter-tag">标签: ' + esc(tag) + ' <span class="remove" data-filter="tag">×</span></span>';
+                if (keyword) filtersHtml += '<span class="filter-tag">搜索: ' + esc(keyword) + ' <span class="remove" data-filter="keyword">×</span></span>';
+                document.getElementById('activeFilters').innerHTML = filtersHtml;
+            }
+
+            // 加载文章
+            function loadArticles() {
+                var params = [];
+                if (category) params.push('category=' + encodeURIComponent(category));
+                if (keyword) params.push('keyword=' + encodeURIComponent(keyword));
+                if (tag) params.push('tag=' + encodeURIComponent(tag));
+                var url = '/api/articles' + (params.length ? '?' + params.join('&') : '');
+
+                fetch(url)
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        renderArticles(d.articles || []);
+                        // 最近文章取全量最新 5 篇
+                        return fetch('/api/articles').then(function (r) { return r.json(); });
+                    })
+                    .then(function (d) { renderRecent(d.articles || []); })
+                    .catch(function () {
+                        document.getElementById('posts').innerHTML =
+                            '<div class="post-tip">文章加载失败，请稍后刷新重试</div>';
+                    });
+            }
+
+            // 加载标签云
+            function loadTagCloud() {
+                fetch('/api/articles/tags')
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) { renderTagCloud(d.tags || []); })
+                    .catch(function () {
+                        document.getElementById('tagCloud').innerHTML =
+                            '<span style="color:#7f8c8d;font-size:13px;">标签加载失败</span>';
+                    });
+            }
+
+            // 绑定事件
+            document.getElementById('searchBtn').addEventListener('click', function () {
+                keyword = searchInput.value.trim();
+                updateUrl();
+                loadArticles();
+            });
+
+            searchInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    keyword = searchInput.value.trim();
+                    updateUrl();
+                    loadArticles();
+                }
+            });
+
+            document.getElementById('clearBtn').addEventListener('click', function () {
+                keyword = '';
+                searchInput.value = '';
+                updateUrl();
+                loadArticles();
+            });
+
+            // 分类点击
+            document.querySelectorAll('#categoryList a').forEach(function (a) {
+                a.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    category = a.getAttribute('data-cat') || '';
+                    updateUrl();
+                    loadArticles();
                 });
+            });
+
+            // 标签云点击
+            document.getElementById('tagCloud').addEventListener('click', function (e) {
+                var item = e.target.closest('.tag-item');
+                if (!item) return;
+                tag = item.getAttribute('data-tag');
+                updateUrl();
+                loadArticles();
+            });
+
+            // 清除筛选
+            document.getElementById('activeFilters').addEventListener('click', function (e) {
+                var remove = e.target.closest('.remove');
+                if (!remove) return;
+                var filterType = remove.getAttribute('data-filter');
+                if (filterType === 'category') category = '';
+                else if (filterType === 'tag') tag = '';
+                else if (filterType === 'keyword') {
+                    keyword = '';
+                    searchInput.value = '';
+                    document.getElementById('clearBtn').style.display = 'none';
+                }
+                updateUrl();
+                loadArticles();
+            });
+
+            // 初始化
+            updateUrl();
+            loadArticles();
+            loadTagCloud();
         })();
     </script>
 </body>

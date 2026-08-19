@@ -343,23 +343,56 @@ function makeSummary(content, maxLen = 120) {
 
 app.get('/api/articles', (req, res) => {
   const category = typeof req.query.category === 'string' ? req.query.category.trim() : '';
+  const keyword = typeof req.query.keyword === 'string' ? req.query.keyword.trim() : '';
+  const tag = typeof req.query.tag === 'string' ? req.query.tag.trim() : '';
   try {
     const withSummary = (rows) =>
       rows.map((a) => ({ ...a, summary: makeSummary(a.content) }));
+
+    let sql = 'SELECT id, title, category, tags, link, content, created_at FROM articles WHERE 1=1';
+    const params = [];
     if (category) {
-      const rows = db
-        .prepare(
-          'SELECT id, title, category, tags, link, content, created_at FROM articles WHERE category = ? ORDER BY created_at DESC, id DESC'
-        )
-        .all(category);
-      return res.json({ articles: withSummary(rows) });
+      sql += ' AND category = ?';
+      params.push(category);
     }
-    const rows = db
-      .prepare('SELECT id, title, category, tags, link, content, created_at FROM articles ORDER BY created_at DESC, id DESC')
-      .all();
+    if (keyword) {
+      sql += ' AND title LIKE ?';
+      params.push(`%${keyword}%`);
+    }
+    if (tag) {
+      sql += ' AND tags LIKE ?';
+      params.push(`%${tag}%`);
+    }
+    sql += ' ORDER BY created_at DESC, id DESC';
+
+    const rows = db.prepare(sql).all(...params);
     res.json({ articles: withSummary(rows) });
   } catch (e) {
     console.error('[articles.list]', e);
+    res.status(500).json({ message: '系统繁忙，请稍后重试' });
+  }
+});
+
+// 返回所有文章的标签统计（用于前端生成标签云）
+app.get('/api/articles/tags', (req, res) => {
+  try {
+    const rows = db
+      .prepare("SELECT tags FROM articles WHERE tags != ''")
+      .all();
+    const tagCount = {};
+    for (const row of rows) {
+      const tags = (row.tags || '').split(',').filter(Boolean);
+      for (const t of tags) {
+        tagCount[t] = (tagCount[t] || 0) + 1;
+      }
+    }
+    // 按使用次数降序，相同则按名称排序
+    const sorted = Object.entries(tagCount)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([name, count]) => ({ name, count }));
+    res.json({ tags: sorted });
+  } catch (e) {
+    console.error('[articles.tags]', e);
     res.status(500).json({ message: '系统繁忙，请稍后重试' });
   }
 });
