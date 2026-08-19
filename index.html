@@ -382,6 +382,62 @@
             .footer-content { flex-direction: column; gap: 10px; }
             .search-box { flex-direction: column; }
             .search-btn, .clear-btn { width: 100%; }
+
+            /* 手机端隐藏头像和最近文章 */
+            .about-me { display: none; }
+            .recent-posts { display: none; }
+
+            /* 手机端分类和标签云移至搜索框上方 */
+            .mobile-filter-bar { display: flex !important; }
+        }
+
+        /* 手机端的分类和标签筛选栏（默认隐藏） */
+        .mobile-filter-bar {
+            display: none;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 12px 16px;
+            margin-bottom: 12px;
+        }
+        .mobile-filter-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .mobile-filter-label {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-right: 8px;
+        }
+        .mobile-cat-btn {
+            padding: 6px 14px;
+            background-color: #ecf0f1;
+            color: #2c3e50;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid transparent;
+        }
+        .mobile-cat-btn:hover, .mobile-cat-btn.active {
+            background-color: #3498db;
+            color: #fff;
+        }
+        .mobile-tag-btn {
+            padding: 4px 12px;
+            background-color: #eaf2f8;
+            color: #2980b9;
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid transparent;
+        }
+        .mobile-tag-btn:hover, .mobile-tag-btn.active {
+            background-color: #3498db;
+            color: #fff;
         }
     </style>
 </head>
@@ -401,6 +457,23 @@
     </header>
     
     <div class="container main-wrap">
+        <!-- 手机端筛选栏 -->
+        <div class="mobile-filter-bar">
+            <div class="mobile-filter-row">
+                <span class="mobile-filter-label">分类：</span>
+                <button class="mobile-cat-btn active" data-cat="">全部</button>
+                <button class="mobile-cat-btn" data-cat="博客">博客</button>
+                <button class="mobile-cat-btn" data-cat="学习笔记">学习笔记</button>
+                <button class="mobile-cat-btn" data-cat="生活感悟">生活感悟</button>
+            </div>
+            <div class="mobile-filter-row" style="margin-top: 8px;">
+                <span class="mobile-filter-label">标签：</span>
+                <div id="mobileTagCloud" class="tag-cloud" style="flex-wrap: wrap;">
+                    <span style="color:#7f8c8d;font-size:13px;">加载中...</span>
+                </div>
+            </div>
+        </div>
+
         <div class="search-bar">
             <div class="search-box">
                 <input type="text" id="searchInput" class="search-input" placeholder="搜索文章标题...">
@@ -610,11 +683,30 @@
             function loadTagCloud() {
                 fetch('/api/articles/tags')
                     .then(function (r) { return r.json(); })
-                    .then(function (d) { renderTagCloud(d.tags || []); })
+                    .then(function (d) {
+                        renderTagCloud(d.tags || []);
+                        renderMobileTagCloud(d.tags || []);
+                    })
                     .catch(function () {
                         document.getElementById('tagCloud').innerHTML =
                             '<span style="color:#7f8c8d;font-size:13px;">标签加载失败</span>';
+                        document.getElementById('mobileTagCloud').innerHTML =
+                            '<span style="color:#7f8c8d;font-size:13px;">标签加载失败</span>';
                     });
+            }
+
+            // 渲染移动端标签云
+            function renderMobileTagCloud(tags) {
+                var container = document.getElementById('mobileTagCloud');
+                if (!tags || !tags.length) {
+                    container.innerHTML = '<span style="color:#7f8c8d;font-size:13px;">暂无标签</span>';
+                    return;
+                }
+                container.innerHTML = tags.map(function (t) {
+                    var isActive = t.name === tag ? ' active' : '';
+                    return '<button class="mobile-tag-btn' + isActive + '" data-tag="' + esc(t.name) + '">' +
+                        esc(t.name) + '</button>';
+                }).join('');
             }
 
             // 绑定事件
@@ -639,7 +731,7 @@
                 loadArticles();
             });
 
-            // 分类点击
+            // 桌面端分类点击
             document.querySelectorAll('#categoryList a').forEach(function (a) {
                 a.addEventListener('click', function (e) {
                     e.preventDefault();
@@ -649,11 +741,39 @@
                 });
             });
 
-            // 标签云点击
+            // 桌面端标签云点击
             document.getElementById('tagCloud').addEventListener('click', function (e) {
                 var item = e.target.closest('.tag-item');
                 if (!item) return;
                 tag = item.getAttribute('data-tag');
+                updateUrl();
+                loadArticles();
+            });
+
+            // 移动端分类按钮点击
+            document.querySelectorAll('.mobile-cat-btn').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    category = this.getAttribute('data-cat') || '';
+                    // 更新激活状态
+                    document.querySelectorAll('.mobile-cat-btn').forEach(function (b) {
+                        b.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                    updateUrl();
+                    loadArticles();
+                });
+            });
+
+            // 移动端标签按钮点击
+            document.getElementById('mobileTagCloud').addEventListener('click', function (e) {
+                var btn = e.target.closest('.mobile-tag-btn');
+                if (!btn) return;
+                tag = btn.getAttribute('data-tag');
+                // 更新激活状态
+                document.querySelectorAll('.mobile-tag-btn').forEach(function (b) {
+                    b.classList.remove('active');
+                });
+                btn.classList.add('active');
                 updateUrl();
                 loadArticles();
             });
