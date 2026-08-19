@@ -413,10 +413,11 @@ app.get('/api/articles/:id', (req, res) => {
 });
 
 /* ================= 后台文章 API（管理员 + CSRF） ================= */
-// 文章管理列表（含检索：标题关键字 / 类别）（REQ-19）
+// 文章管理列表（含检索：标题关键字 / 类别 / 标签）（REQ-19）
 app.get('/api/admin/articles', (req, res) => {
   const keyword = typeof req.query.keyword === 'string' ? req.query.keyword.trim() : '';
   const category = typeof req.query.category === 'string' ? req.query.category.trim() : '';
+  const tag = typeof req.query.tag === 'string' ? req.query.tag.trim() : '';
   try {
     // 后台列表只显示可管理的普通文章（link 非空的固定页面不可在后台管理）
     let sql = "SELECT id, title, category, tags, link, created_at FROM articles WHERE link = ''";
@@ -428,6 +429,10 @@ app.get('/api/admin/articles', (req, res) => {
     if (category) {
       sql += ' AND category = ?';
       params.push(category);
+    }
+    if (tag) {
+      sql += ' AND tags LIKE ?';
+      params.push(`%${tag}%`);
     }
     sql += ' ORDER BY created_at DESC, id DESC';
     const rows = db.prepare(sql).all(...params);

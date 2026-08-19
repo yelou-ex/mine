@@ -152,16 +152,35 @@ export async function onRequest(context) {
     };
     if (path === '/api/articles' && method === 'GET') {
       const category = url.searchParams.get('category') || '';
-      if (category) {
-        const rows = await env.DB.prepare(
-          'SELECT id, title, category, tags, link, content, created_at FROM articles WHERE category = ? ORDER BY created_at DESC, id DESC'
-        ).bind(category).all();
-        return json({ articles: rows.results.map((a) => ({ ...a, summary: makeSummary(a.content) })) });
-      }
-      const rows = await env.DB.prepare(
-        'SELECT id, title, category, tags, link, content, created_at FROM articles ORDER BY created_at DESC, id DESC'
-      ).all();
+      const keyword = url.searchParams.get('keyword') || '';
+      const tag = url.searchParams.get('tag') || '';
+      
+      let sql = 'SELECT id, title, category, tags, link, content, created_at FROM articles WHERE 1=1';
+      const args = [];
+      if (category) { sql += ' AND category = ?'; args.push(category); }
+      if (keyword) { sql += ' AND title LIKE ?'; args.push(`%${keyword}%`); }
+      if (tag) { sql += ' AND tags LIKE ?'; args.push(`%${tag}%`); }
+      sql += ' ORDER BY created_at DESC, id DESC';
+      
+      const stmt = env.DB.prepare(sql);
+      const rows = args.length ? await stmt.bind(...args).all() : await stmt.all();
       return json({ articles: rows.results.map((a) => ({ ...a, summary: makeSummary(a.content) })) });
+    }
+
+    // 标签统计（标签云）
+    if (path === '/api/articles/tags' && method === 'GET') {
+      const result = await env.DB.prepare("SELECT tags FROM articles WHERE tags != ''").all();
+      const tagCount = {};
+      for (const row of result.results) {
+        const tags = (row.tags || '').split(',').filter(Boolean);
+        for (const t of tags) {
+          tagCount[t] = (tagCount[t] || 0) + 1;
+        }
+      }
+      const tags = Object.entries(tagCount)
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([name, count]) => ({ name, count }));
+      return json({ tags });
     }
 
     const detailMatch = path.match(/^\/api\/articles\/(\d+)$/);
@@ -181,10 +200,12 @@ export async function onRequest(context) {
         if (!session) return unauthorized();
         const keyword = url.searchParams.get('keyword') || '';
         const category = url.searchParams.get('category') || '';
-        let sql = 'SELECT id, title, category, tags, link, created_at FROM articles WHERE 1=1';
+        const tag = url.searchParams.get('tag') || '';
+        let sql = "SELECT id, title, category, tags, link, created_at FROM articles WHERE link = ''";
         const args = [];
         if (keyword) { sql += ' AND title LIKE ?'; args.push(`%${keyword}%`); }
         if (category) { sql += ' AND category = ?'; args.push(category); }
+        if (tag) { sql += ' AND tags LIKE ?'; args.push(`%${tag}%`); }
         sql += ' ORDER BY created_at DESC, id DESC';
         const stmt = env.DB.prepare(sql);
         const rows = args.length ? await stmt.bind(...args).all() : await stmt.all();
@@ -221,6 +242,28 @@ export async function onRequest(context) {
         return json({ success: true, id: newId, message: '发布成功' });
       }
       return json({ message: '接口不存在' }, 404);
+    }
+
+    // 更新文章（PUT /api/admin/articles/:id）
+    const adminUpdateMatch = path.match(/^\/api\/admin\/articles\/(\d+)$/);
+    if (adminUpdateMatch && method === 'PUT') {
+      const auth = await requireAdminWrite(request, env);
+      if (auth.error) return auth.error;
+      const id = Number(adminUpdateMatch[1]);
+      const body = await readBody(request);
+      if (!body) return json({ message: '请求体格式错误' }, 400);
+      const result = validateArticle(body);
+      if (result.error) return json({ message: result.error }, 400);
+
+      // 验证文章存在
+      const row = await env.DB.prepare('SELECT id FROM articles WHERE id = ?').bind(id).first();
+      if (!row) return json({ message: '文章不存在或已被删除' }, 404);
+
+      const { title, content, category, tags } = result.value;
+      await env.DB.prepare(
+        'UPDATE articles SET title = ?, content = ?, category = ?, tags = ? WHERE id = ?'
+      ).bind(title, content, category, tags, id).run();
+      return json({ success: true, message: '更新成功' });
     }
 
     // 批量删除（REQ-23 / REQ-24）

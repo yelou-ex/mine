@@ -1,0 +1,16 @@
+name = "personal-website"
+main = "workers-server.js"
+compatibility_date = "2024-01-01"
+
+# D1 数据库绑定（创建后替换 database_id）
+[[d1_databases]]
+binding = "DB"
+database_name = "personal-website-db"
+database_id = ""  # TODO: 运行 wrangler d1 create 后填入 ID
+
+# 静态资产托管
+assets = { directory = "./" }
+
+# 环境变量
+[vars]
+NODE_ENV = "production"

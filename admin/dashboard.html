@@ -262,6 +262,7 @@
                     <option value="学习笔记">学习笔记</option>
                     <option value="生活感悟">生活感悟</option>
                 </select>
+                <input type="text" id="searchTag" placeholder="按标签检索…" maxlength="20">
                 <button class="btn btn-primary" id="searchBtn">检索</button>
                 <button class="btn btn-ghost" id="resetBtn">重置</button>
                 <div style="flex:1"></div>
@@ -446,7 +447,13 @@
             function loadList() {
                 var kw = encodeURIComponent($('searchKeyword').value.trim());
                 var cat = encodeURIComponent($('searchCategory').value);
-                api('/api/admin/articles?keyword=' + kw + '&category=' + cat)
+                var tag = encodeURIComponent($('searchTag').value.trim());
+                var params = [];
+                if (kw) params.push('keyword=' + kw);
+                if (cat) params.push('category=' + cat);
+                if (tag) params.push('tag=' + tag);
+                var url = '/api/admin/articles' + (params.length ? '?' + params.join('&') : '');
+                api(url)
                     .then(function (r) {
                         if (r.status !== 200) { showError(r.data.message || '加载失败'); return; }
                         allArticles = r.data.articles;
@@ -653,9 +660,11 @@
             $('resetBtn').addEventListener('click', function () {
                 $('searchKeyword').value = '';
                 $('searchCategory').value = '';
+                $('searchTag').value = '';
                 loadList();
             });
             $('searchKeyword').addEventListener('keydown', function (e) { if (e.key === 'Enter') loadList(); });
+            $('searchTag').addEventListener('keydown', function (e) { if (e.key === 'Enter') loadList(); });
             $('prevPage').addEventListener('click', function () { if (page > 1) { page--; renderList(); } });
             $('nextPage').addEventListener('click', function () { if (page * pageSize < allArticles.length) { page++; renderList(); } });
             $('checkAll').addEventListener('change', function () {
