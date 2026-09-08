@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>文章详情 - yelou的个人博客</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Arial', 'Microsoft YaHei', sans-serif; }
@@ -79,7 +79,7 @@
         .comment-form input:focus, .comment-form textarea:focus { outline: none; border-color: #3498db; }
         .comment-form .field-name { flex: 0 0 42%; }
         .comment-form textarea { resize: vertical; min-height: 80px; }
-        .comment-form .btn-submit { background: #3498db; color: #fff; border: none; border-radius: 4px; padding: 8px 22px; font-size: 14px; cursor: pointer; }
+        .comment-form .btn-submit { background: #3498db; color: #fff; border: none; border-radius: 4px; padding: 8px 22px; font-size: 14px; cursor: pointer; touch-action: manipulation; }
         .comment-form .btn-submit:hover { background: #2980b9; }
         .comment-form .btn-submit:disabled { background: #9dc9e8; cursor: not-allowed; }
         .comment-msg { font-size: 13px; margin-top: 8px; min-height: 16px; }
@@ -93,10 +93,16 @@
             .article-wrap { padding: 20px 16px; margin: 16px 0; }
             .article-title { font-size: 20px; }
             .article-body { font-size: 14.5px; }
-            .comments-wrap { padding: 16px; margin: 0 0 16px; }
-            .comment-content { font-size: 14px; }
-            .comment-form .row { flex-direction: column; gap: 6px; }
+            .comments-wrap { padding: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom)); margin: 0 0 16px; }
+            .comments-title { font-size: 16px; }
+            .comment-content { font-size: 14px; line-height: 1.6; }
+            /* 手机端评论 UI（REQ-34 / 5.5.5）：单列表单 + 点击目标 ≥44px + 16px 字号防 iOS 自动缩放 */
+            .comment-form input, .comment-form textarea { font-size: 16px; padding: 11px 12px; }
+            .comment-form .row { flex-direction: column; gap: 8px; }
             .comment-form .field-name { flex: 1 1 auto; }
+            .comment-form textarea { min-height: 72px; }
+            .comment-form .btn-submit { width: 100%; padding: 12px; font-size: 16px; }
+            .comment-msg { margin-top: 10px; }
         }
     </style>
 </head>
@@ -199,7 +205,7 @@
                     '<input id="c-nickname" class="field-name" maxlength="20" placeholder="昵称（必填）">' +
                     '<input id="c-email" type="email" maxlength="50" placeholder="邮箱（选填）">' +
                     '</div>' +
-                    '<textarea id="c-content" maxlength="1000" placeholder="写下你的评论…（≤ 1000 字符）"></textarea>' +
+                    '<textarea id="c-content" rows="3" maxlength="1000" placeholder="写下你的评论…（≤ 1000 字符）"></textarea>' +
                     '<div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">' +
                     '<button type="button" class="btn-submit" id="c-submit">发表评论</button>' +
                     '<div id="c-msg" class="comment-msg"></div>' +
@@ -210,11 +216,13 @@
                 document.getElementById('c-submit').addEventListener('click', submitComment);
             }
 
+            var justPosted = false; // 5.5.5：仅当本页刚提交成功时，刷新后自动滚动定位新评论
             function renderComments(data) {
                 document.getElementById('commentCount').textContent = '（' + data.count + '）';
                 var list = document.getElementById('commentList');
                 if (!data.comments.length) {
                     list.innerHTML = '<div class="comment-empty">暂无评论，快来抢沙发</div>';
+                    justPosted = false;
                     return;
                 }
                 list.innerHTML = data.comments.map(function (c) {
@@ -224,6 +232,11 @@
                         '<div class="comment-content">' + esc(c.content) + '</div>' +
                         '</div>';
                 }).join('');
+                if (justPosted) {
+                    justPosted = false;
+                    var last = list.querySelector('.comment-item:last-child');
+                    if (last) last.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
             }
 
             function loadComments() {
@@ -275,6 +288,7 @@
                             msg.textContent = r.data.message || '评论发布成功';
                             msg.className = 'comment-msg ok';
                             document.getElementById('c-content').value = '';
+                            justPosted = true; // 刷新后自动滚动到最新一条
                             loadComments();
                         } else {
                             msg.textContent = r.data.message || '评论发布失败，请稍后重试';
