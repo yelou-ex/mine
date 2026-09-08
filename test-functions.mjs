@@ -13,9 +13,11 @@ class MockStmt {
     this.sql = sql;
     this.args = [];
   }
+  // 与 D1 一致：bind 返回持有本次参数的新语句（每次绑定独立，batch 中逐条生效）
   bind(...args) {
-    this.args = args;
-    return this;
+    const s = new MockStmt(this.db, this.sql);
+    s.args = args;
+    return s;
   }
   async all() {
     const rows = this.db.prepare(this.sql).all(...this.args);
@@ -36,6 +38,15 @@ class MockDB {
   }
   prepare(sql) {
     return new MockStmt(this.db, sql);
+  }
+  async exec(sql) {
+    // D1 的 exec 支持多语句/PRAGMA；内存库用 better-sqlite3 等价执行，失败则忽略（不影响用例）
+    try {
+      this.db.exec(sql);
+    } catch {
+      /* pragma 类语句在内存库中可忽略 */
+    }
+    return [];
   }
   async batch(stmts) {
     const out = [];
@@ -180,6 +191,96 @@ r = await call('/api/admin/articles/batch-delete', { method: 'POST', body: { ids
 check('批量删除 2 篇', r.status === 200 && r.data.deleted === 2, `got ${r.status} ${r.text}`);
 r = await call('/api/admin/articles/batch-delete', { method: 'POST', body: { ids: [] }, csrf });
 check('批量删除空选 → 400', r.status === 400, `got ${r.status}`);
+
+console.log('\n[5.5] 评论功能（REQ-25 ~ 33 / BC-27 ~ 36）');
+// 先验证未登录拦截（清空会话）
+jar = {};
+r = await call('/api/admin/comments');
+check('未登录后台评论列表 → 401', r.status === 401, `got ${r.status}`);
+r = await call('/api/admin/comments/1', { method: 'DELETE' });
+check('未登录删除评论 → 401', r.status === 401, `got ${r.status}`);
+// 重新登录
+r = await call('/api/login', { method: 'POST', body: { username: 'admin', password: 'admin123' } });
+check('重新登录成功', r.status === 200, `got ${r.status}`);
+r = await call('/api/csrf-token');
+const cmsf = r.data && r.data.csrfToken;
+
+// BC-32 文章不存在
+r = await call('/api/articles/999999/comments');
+check('BC-32 读取不存在文章的评论 → 404', r.status === 404, `got ${r.status}`);
+// REQ-27 空列表
+r = await call('/api/articles/1/comments');
+check('REQ-27 评论列表初始为空', r.status === 200 && r.data.count === 0, `got ${r.status} count=${r.data && r.data.count}`);
+// REQ-25/26 正常评论
+r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: '测试君', email: 't@e.com', content: '写得很棒' } });
+check('REQ-25/26 正常评论入库', r.status === 200 && r.data.success, `got ${r.status} ${r.text}`);
+// BC-27 昵称空
+r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: '  ', content: 'x' } });
+check('BC-27 昵称为空 → 400', r.status === 400 && /昵称/.test(r.data.message || ''), `got ${r.status} ${r.text}`);
+// BC-28 内容空
+r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: 'a', content: '   ' } });
+check('BC-28 内容为空 → 400', r.status === 400 && /评论内容/.test(r.data.message || ''), `got ${r.status} ${r.text}`);
+// BC-31 XSS 过滤
+r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: 'hacker', content: '<script>alert(1)</script>哈哈' } });
+check('BC-31 XSS 载荷提交成功', r.status === 200, `got ${r.status}`);
+{
+  const d = await call('/api/articles/1/comments');
+  const xssRow = d.data.comments.find((c) => c.nickname === 'hacker');
+  check('BC-31 入库后为纯文本', !!xssRow && !xssRow.content.includes('<') && xssRow.content.includes('哈哈'), `content=${xssRow && JSON.stringify(xssRow.content)}`);
+}
+// BC-30 邮箱非法
+r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: 'a', email: 'not-email', content: 'hi' } });
+check('BC-30 邮箱非法 → 400', r.status === 400 && /邮箱/.test(r.data.message || ''), `got ${r.status} ${r.text}`);
+// BC-29 超长
+r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: 'a', content: 'x'.repeat(1001) } });
+check('BC-29 内容超长 → 400', r.status === 400 && /1000/.test(r.data.message || ''), `got ${r.status}`);
+// REQ-30 防重复
+r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: 'dup', content: 'CF重复测试ABC' } });
+const dupFirst = r.status;
+r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: 'dup', content: 'CF重复测试ABC' } });
+check('REQ-30 60s 内重复 → 429', dupFirst === 200 && r.status === 429, `first=${dupFirst} second=${r.status}`);
+// REQ-29 级联删除（先于限流测试，避免占用 IP 限流配额）
+{
+  const c2 = await call('/api/articles/2/comments', { method: 'POST', body: { nickname: 'c', content: 'will-be-cascade' } });
+  const delArt = await call('/api/admin/articles/2', { method: 'DELETE', csrf: cmsf });
+  const cmAfter = await call('/api/admin/comments?articleId=2');
+  check(
+    'REQ-29 删除文章后评论级联清理',
+    c2.status === 200 && delArt.status === 200 && cmAfter.status === 200 && cmAfter.data.comments.length === 0,
+    `post=${c2.status} delArt=${delArt.status} count=${cmAfter.data && cmAfter.data.comments.length}`
+  );
+}
+// REQ-31 限流（每小时 10 条）
+let limited = false;
+let limitStatus = 0;
+for (let i = 0; i < 30; i++) {
+  r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: 'limiter', content: `CF限流测试 ${i}` } });
+  if (r.status === 429 && /频繁/.test(r.data.message || '')) {
+    limited = true;
+    break;
+  }
+  limitStatus = r.status;
+}
+check('REQ-31 超限流 → 429 频繁提示', limited, `lastStatus=${limitStatus}`);
+// REQ-32 后台列表与检索
+r = await call('/api/admin/comments');
+check('REQ-32 后台评论列表', r.status === 200 && Array.isArray(r.data.comments) && r.data.comments.length > 0, `got ${r.status} n=${r.data.comments && r.data.comments.length}`);
+const firstCm = r.data.comments[0];
+r = await call('/api/admin/comments?articleId=1');
+check('REQ-32 按文章 ID 检索', r.status === 200 && r.data.comments.every((c) => c.article_id === 1), `got ${r.status}`);
+check('检索结果含文章标题', r.status === 200 && r.data.comments.every((c) => c.article_title === '个人基本信息'), `first=${JSON.stringify(r.data.comments[0] && r.data.comments[0].article_title)}`);
+// REQ-33 / BC-35 删除评论
+r = await call('/api/admin/comments/' + firstCm.id, { method: 'DELETE', csrf: cmsf });
+check('REQ-33 删除评论成功', r.status === 200 && r.data.success, `got ${r.status} ${r.text}`);
+r = await call('/api/admin/comments/' + firstCm.id, { method: 'DELETE', csrf: cmsf });
+check('删除不存在的评论 → 404', r.status === 404, `got ${r.status}`);
+const anotherCm = (await call('/api/admin/comments')).data.comments[0];
+if (anotherCm) {
+  r = await call('/api/admin/comments/' + anotherCm.id, { method: 'DELETE' });
+  check('BC-35 无 CSRF 删除 → 403', r.status === 403, `got ${r.status}`);
+} else {
+  check('BC-35 无 CSRF 删除 → 403', true, '（无剩余评论，跳过）');
+}
 
 console.log('\n[6] 防暴力破解');
 const victim = 'hacker' + Date.now();

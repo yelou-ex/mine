@@ -10,6 +10,7 @@ import {
   logLogin, checkLocked, recordLoginFailure, clearLoginFailures,
   isDuplicateSubmit, sha256Fingerprint,
   SESSION_TTL_MS, ALLOWED_CATEGORIES,
+  validateComment, COMMENT_DUP_WINDOW_MS, COMMENT_HOUR_LIMIT,
 } from '../_lib.mjs';
 
 let schemaPromise = null;
@@ -192,6 +193,51 @@ export async function onRequest(context) {
       return json({ article: row });
     }
 
+    /* ---------- 前台评论（REQ-25 ~ 31 / BC-27 ~ 36） ---------- */
+    const commentMatch = path.match(/^\/api\/articles\/(\d+)\/comments$/);
+    if (commentMatch && method === 'GET') {
+      const aid = Number(commentMatch[1]);
+      const article = await env.DB.prepare('SELECT id FROM articles WHERE id = ?').bind(aid).first();
+      if (!article) return json({ message: '文章不存在或已被删除' }, 404); // BC-32
+      const rows = await env.DB.prepare(
+        'SELECT id, nickname, email, content, created_at FROM comments WHERE article_id = ? ORDER BY id ASC'
+      ).bind(aid).all();
+      return json({ comments: rows.results, count: rows.results.length });
+    }
+    if (commentMatch && method === 'POST') {
+      const aid = Number(commentMatch[1]);
+      const article = await env.DB.prepare('SELECT id FROM articles WHERE id = ?').bind(aid).first();
+      if (!article) return json({ message: '文章不存在或已被删除' }, 404); // BC-32
+
+      const body = await readBody(request);
+      if (!body) return json({ message: '请求体格式错误' }, 400);
+      const result = validateComment(body);
+      if (result.error) return json({ message: result.error }, 400);
+      const { nickname, email, content } = result.value;
+      const ip = clientIp;
+
+      // 防重复提交（REQ-30 / BC-33）：同 IP + 同文章 + 同内容，60 秒窗口（基于 UTC 纪元秒 created_ms，不受时区影响）
+      const last = await env.DB.prepare(
+        'SELECT created_ms FROM comments WHERE article_id = ? AND ip = ? AND content = ? ORDER BY id DESC LIMIT 1'
+      ).bind(aid, ip, content).first();
+      if (last && last.created_ms && Date.now() - last.created_ms * 1000 < COMMENT_DUP_WINDOW_MS) {
+        return json({ message: '请勿重复提交评论' }, 429);
+      }
+      // 按 IP 限流（REQ-31 / BC-34）：每小时最多 COMMENT_HOUR_LIMIT 条（同样基于 created_ms）
+      const hourCutoff = Math.floor((Date.now() - 60 * 60 * 1000) / 1000);
+      const hourCount = await env.DB.prepare(
+        'SELECT COUNT(*) AS c FROM comments WHERE ip = ? AND created_ms >= ?'
+      ).bind(ip, hourCutoff).first();
+      if (hourCount && Number(hourCount.c) >= COMMENT_HOUR_LIMIT) {
+        return json({ message: '评论过于频繁，请稍后再试' }, 429);
+      }
+
+      await env.DB.prepare(
+        'INSERT INTO comments (article_id, nickname, email, content, ip) VALUES (?, ?, ?, ?, ?)'
+      ).bind(aid, nickname, email, content, ip).run();
+      return json({ success: true, message: '评论发布成功' });
+    }
+
     /* ---------- 后台管理接口（管理员 + CSRF） ---------- */
     if (path === '/api/admin/articles') {
       // 管理列表（REQ-19）
@@ -278,6 +324,7 @@ export async function onRequest(context) {
       const existing = await env.DB.prepare(`SELECT id FROM articles WHERE id IN (${placeholders})`).bind(...ids).all();
       const existIds = existing.results.map((r) => r.id);
       if (existIds.length) {
+        await env.DB.prepare(`DELETE FROM comments WHERE article_id IN (${placeholders})`).bind(...existIds).run();
         await env.DB.prepare(`DELETE FROM articles WHERE id IN (${placeholders})`).bind(...existIds).run();
       }
       return json({ success: true, deleted: existIds.length, message: `删除成功（${existIds.length} 篇）` });
@@ -291,7 +338,38 @@ export async function onRequest(context) {
       const id = Number(adminDelMatch[1]);
       const row = await env.DB.prepare('SELECT id FROM articles WHERE id = ?').bind(id).first();
       if (!row) return json({ message: '文章不存在或已被删除' }, 404); // BC-23
+      await env.DB.prepare('DELETE FROM comments WHERE article_id = ?').bind(id).run(); // 级联清理评论
       await env.DB.prepare('DELETE FROM articles WHERE id = ?').bind(id).run();
+      return json({ success: true, message: '删除成功' });
+    }
+
+    /* ---------- 后台评论管理（REQ-32 / REQ-33 / BC-35） ---------- */
+    if (path === '/api/admin/comments' && method === 'GET') {
+      const session = await getAdminSession(request, env);
+      if (!session) return unauthorized();
+      const articleId = url.searchParams.get('articleId') || '';
+      let sql =
+        'SELECT c.id, c.article_id, a.title AS article_title, c.nickname, c.email, c.content, c.ip, c.created_at ' +
+        'FROM comments c LEFT JOIN articles a ON a.id = c.article_id';
+      const args = [];
+      if (articleId && Number.isInteger(Number(articleId)) && Number(articleId) > 0) {
+        sql += ' WHERE c.article_id = ?';
+        args.push(Number(articleId));
+      }
+      sql += ' ORDER BY c.id DESC';
+      const stmt = env.DB.prepare(sql);
+      const rows = args.length ? await stmt.bind(...args).all() : await stmt.all();
+      return json({ comments: rows.results });
+    }
+
+    const adminCmMatch = path.match(/^\/api\/admin\/comments\/(\d+)$/);
+    if (adminCmMatch && method === 'DELETE') {
+      const auth = await requireAdminWrite(request, env);
+      if (auth.error) return auth.error;
+      const id = Number(adminCmMatch[1]);
+      const row = await env.DB.prepare('SELECT id FROM comments WHERE id = ?').bind(id).first();
+      if (!row) return json({ message: '评论不存在或已被删除' }, 404);
+      await env.DB.prepare('DELETE FROM comments WHERE id = ?').bind(id).run();
       return json({ success: true, message: '删除成功' });
     }
 

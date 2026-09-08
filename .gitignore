@@ -11,3 +11,7 @@ data/
 *.log
 .DS_Store
 Thumbs.db
+
+# Word 临时锁文件与编辑器原子保存残留
+~$*
+*.tmpdir/

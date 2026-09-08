@@ -3,6 +3,7 @@
  * 表结构：
  *   admins      管理员账户（密码 bcrypt 哈希存储，含失败计数/锁定字段）
  *   articles    文章（link 字段：非空时前台"阅读更多"跳转到指定静态页面）
+ *   comments    文章评论（REQ-25 ~ 33）：article_id 外键 ON DELETE CASCADE，删除文章时级联清理
  *   login_logs  登录日志
  * 所有 SQL 均使用参数化查询（prepared statements），防止注入。
  */
@@ -86,6 +87,19 @@ db.exec(`
     ip         TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
   );
+
+  CREATE TABLE IF NOT EXISTS comments (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    article_id INTEGER NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    nickname   TEXT NOT NULL,
+    email      TEXT NOT NULL DEFAULT '',
+    content    TEXT NOT NULL,
+    ip         TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    created_ms INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_comments_article ON comments (article_id);
 `);
 
 // 迁移：为已有数据库补 link 列，并为 3 篇种子文章设置指向原有静态页面的链接

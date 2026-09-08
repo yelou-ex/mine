@@ -17,6 +17,13 @@ export const MAX_CONTENT_LEN = 50000;
 export const MAX_TAG_COUNT = 5;
 export const MAX_TAG_LEN = 20;
 export const TAG_PATTERN = /^[\u4e00-\u9fa5A-Za-z0-9_-]+$/;
+// 评论（REQ-25 ~ 33 / BC-27 ~ 36）
+export const MAX_NICKNAME_LEN = 20;
+export const MAX_EMAIL_LEN = 50;
+export const MAX_COMMENT_LEN = 1000;
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const COMMENT_DUP_WINDOW_MS = 60 * 1000; // 同 IP + 同文章 + 同内容 60 秒防重复
+export const COMMENT_HOUR_LIMIT = 10;           // 同 IP 每小时最多 10 条
 export const PBKDF2_ITERATIONS = 60000; // 免费版 Workers CPU 限制下取 6 万次
 export const DEFAULT_ADMIN = { username: 'admin', password: 'admin123' };
 
@@ -227,6 +234,35 @@ export function validateArticle(body) {
   return { value: { title, content, category, tags: tags.join(',') } };
 }
 
+/* ================= 评论字段校验（与 Express 版规则一致，REQ-25 ~ 33） ================= */
+// 评论内容统一按纯文本处理：先整体剔除危险元素（含其内容），再去除剩余 HTML 标签
+export function sanitizeComment(raw) {
+  let s = String(raw == null ? '' : raw);
+  s = s.replace(/<(script|style|iframe|object|embed|form|textarea|select|link|meta)\b[\s\S]*?<\/\1\s*>/gi, '');
+  s = s.replace(/<[^>]*>/g, '');
+  return s;
+}
+
+export function validateComment(body) {
+  const nickname = typeof body.nickname === 'string' ? body.nickname.trim() : '';
+  const email = typeof body.email === 'string' ? body.email.trim() : '';
+  const rawContent = typeof body.content === 'string' ? body.content : '';
+
+  if (!nickname) return { error: '昵称不能为空' };
+  if (nickname.length > MAX_NICKNAME_LEN) return { error: `昵称不能超过 ${MAX_NICKNAME_LEN} 个字符` };
+  if (rawContent.length > MAX_COMMENT_LEN) return { error: `评论内容不能超过 ${MAX_COMMENT_LEN} 个字符` };
+
+  // XSS 过滤（REQ-28 / BC-31）
+  const content = sanitizeComment(rawContent).trim();
+  if (!content) return { error: '评论内容不能为空' };
+
+  if (email) {
+    if (email.length > MAX_EMAIL_LEN) return { error: `邮箱不能超过 ${MAX_EMAIL_LEN} 个字符` };
+    if (!EMAIL_PATTERN.test(email)) return { error: '邮箱格式不正确' };
+  }
+  return { value: { nickname, email, content } };
+}
+
 /* ================= D1 Schema 初始化（幂等） ================= */
 const SEED_ARTICLES = [
   {
@@ -297,7 +333,25 @@ export async function ensureSchema(env) {
       key TEXT PRIMARY KEY,
       value TEXT
     )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS comments (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      article_id INTEGER NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+      nickname   TEXT NOT NULL,
+      email      TEXT NOT NULL DEFAULT '',
+      content    TEXT NOT NULL,
+      ip         TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      created_ms INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    )`),
+    env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_comments_article ON comments (article_id)`),
   ]);
+  // 显式开启外键约束（与本地 SQLite 版一致），保证删除文章时级联清理评论
+  // （后台删除接口另有显式清理评论的语句，此处为双保险；失败不阻断应用）
+  try {
+    await env.DB.exec('PRAGMA foreign_keys = ON;');
+  } catch {
+    /* 忽略：部分环境不支持 PRAGMA exec */
+  }
   // 迁移：为旧库补 link 列，并为 3 篇种子文章设置指向原有静态页面的链接
   const artCols = await env.DB.prepare('PRAGMA table_info(articles)').all();
   if (!artCols.results.some((c) => c.name === 'link')) {

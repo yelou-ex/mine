@@ -63,6 +63,8 @@ wrangler deploy
 | `/api/articles` | GET | 获取文章列表 |
 | `/api/articles/:id` | GET | 获取文章详情 |
 | `/api/articles/tags` | GET | 获取标签统计 |
+| `/api/articles/:id/comments` | GET | 获取文章评论列表（评论功能 v1.2） |
+| `/api/articles/:id/comments` | POST | 发表评论（XSS 过滤 + 60s 防重复 + 按 IP 限流） |
 
 ### 后台接口
 
@@ -71,6 +73,8 @@ wrangler deploy
 | `/api/login` | POST | 管理员登录 |
 | `/api/admin/articles` | GET/POST | 文章列表/创建 |
 | `/api/admin/articles/:id` | PUT/DELETE | 更新/删除文章 |
+| `/api/admin/comments` | GET | 评论管理列表（支持 `?articleId=` 检索） |
+| `/api/admin/comments/:id` | DELETE | 删除评论（需会话 + CSRF） |
 
 ## 常见问题
 

@@ -5,6 +5,8 @@
  *   - 权限管理（页面访问控制 / 提交身份校验 / CSRF Token / 会话时效校验）
  *   - 文章添加（字段校验 / XSS 白名单过滤 / 防重复提交）
  *   - 文章列表与删除（检索 / 二次确认由前端实现 / 删除身份校验 / 批量删除）
+ *   - 文章评论（REQ-25 ~ 33）：前台评论列表/发表评论、XSS 过滤、60s 防重复、按 IP 限流；
+ *     后台评论管理（检索 / 删除 / 会话 + CSRF 校验）；删除文章时评论级联删除
  * 启动：node server.js  （默认端口 3000，可用环境变量 PORT 覆盖）
  */
 const path = require('path');
@@ -31,6 +33,14 @@ const MAX_CONTENT_LEN = 50000;
 const MAX_TAG_COUNT = 5;
 const MAX_TAG_LEN = 20;
 const TAG_PATTERN = /^[\u4e00-\u9fa5A-Za-z0-9_-]+$/; // 中文/英文/数字/下划线/连字符
+
+/* 评论（REQ-25 ~ 33 / BC-27 ~ 36） */
+const MAX_NICKNAME_LEN = 20;
+const MAX_EMAIL_LEN = 50;
+const MAX_COMMENT_LEN = 1000;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const COMMENT_DUP_WINDOW_MS = 60 * 1000;  // 同 IP + 同文章 + 同内容 60 秒内防重复
+const COMMENT_HOUR_LIMIT = 10;            // 同 IP 每小时最多 10 条
 
 // 内容 XSS 白名单（去除 script、事件属性、iframe 等）
 const SANITIZE_OPTIONS = {
@@ -177,6 +187,38 @@ function validateArticle(body) {
   }
 
   return { value: { title, content, category, tags: tags.join(',') } };
+}
+
+/* ================= 评论（REQ-25 ~ 33 / BC-27 ~ 36） ================= */
+// 评论内容统一按纯文本处理：先整体剔除危险元素（含其内容），再去除剩余 HTML 标签
+function sanitizeComment(raw) {
+  let s = String(raw == null ? '' : raw);
+  s = s.replace(/<(script|style|iframe|object|embed|form|textarea|select|link|meta)\b[\s\S]*?<\/\1\s*>/gi, '');
+  s = s.replace(/<[^>]*>/g, '');
+  return s;
+}
+
+// 评论字段校验（前端 + 后端双重校验；规则见 5.5.2 字段规格）
+function validateComment(body) {
+  const nickname = typeof body.nickname === 'string' ? body.nickname.trim() : '';
+  const email = typeof body.email === 'string' ? body.email.trim() : '';
+  const rawContent = typeof body.content === 'string' ? body.content : '';
+
+  if (!nickname) return { error: '昵称不能为空' };
+  if (nickname.length > MAX_NICKNAME_LEN) return { error: `昵称不能超过 ${MAX_NICKNAME_LEN} 个字符` };
+
+  if (rawContent.length > MAX_COMMENT_LEN) return { error: `评论内容不能超过 ${MAX_COMMENT_LEN} 个字符` };
+
+  // XSS 过滤：去除全部 HTML 标签后按纯文本入库（REQ-28 / BC-31）
+  const content = sanitizeComment(rawContent).trim();
+  if (!content) return { error: '评论内容不能为空' };
+
+  if (email) {
+    if (email.length > MAX_EMAIL_LEN) return { error: `邮箱不能超过 ${MAX_EMAIL_LEN} 个字符` };
+    if (!EMAIL_PATTERN.test(email)) return { error: '邮箱格式不正确' };
+  }
+
+  return { value: { nickname, email, content } };
 }
 
 /* ================= 页面访问控制（REQ-09 / BC-08） ================= */
@@ -412,6 +454,64 @@ app.get('/api/articles/:id', (req, res) => {
   }
 });
 
+/* ================= 前台评论 API（公开：只读 + 发表评论） ================= */
+// 评论列表（REQ-27 / REQ-29 / BC-32）
+app.get('/api/articles/:id/comments', (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ message: '文章不存在或已被删除' });
+  try {
+    const article = db.prepare('SELECT id FROM articles WHERE id = ?').get(id);
+    if (!article) return res.status(404).json({ message: '文章不存在或已被删除' });
+    const rows = db
+      .prepare('SELECT id, nickname, email, content, created_at FROM comments WHERE article_id = ? ORDER BY id ASC')
+      .all(id);
+    res.json({ comments: rows, count: rows.length });
+  } catch (e) {
+    console.error('[comments.list]', e);
+    res.status(500).json({ message: '系统繁忙，请稍后重试' });
+  }
+});
+
+// 发表评论（REQ-25 ~ 31 / BC-27 ~ 31、33 ~ 36）
+app.post('/api/articles/:id/comments', (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ message: '文章不存在或已被删除' });
+  try {
+    const article = db.prepare('SELECT id FROM articles WHERE id = ?').get(id);
+    if (!article) return res.status(404).json({ message: '文章不存在或已被删除' }); // BC-32
+
+    const result = validateComment(req.body);
+    if (result.error) return res.status(400).json({ message: result.error });
+    const { nickname, email, content } = result.value;
+    const ip = req.ip || '';
+
+    // 防重复提交（REQ-30 / BC-33）：同 IP + 同文章 + 同内容，60 秒窗口（基于 UTC 纪元秒 created_ms，不受时区影响）
+    const last = db
+      .prepare('SELECT created_ms FROM comments WHERE article_id = ? AND ip = ? AND content = ? ORDER BY id DESC LIMIT 1')
+      .get(id, ip, content);
+    if (last && last.created_ms && Date.now() - last.created_ms * 1000 < COMMENT_DUP_WINDOW_MS) {
+      return res.status(429).json({ message: '请勿重复提交评论' });
+    }
+
+    // 按 IP 限流（REQ-31 / BC-34）：每小时最多 COMMENT_HOUR_LIMIT 条（同样基于 created_ms）
+    const hourCutoff = Math.floor((Date.now() - 60 * 60 * 1000) / 1000);
+    const hourCount = db
+      .prepare('SELECT COUNT(*) AS c FROM comments WHERE ip = ? AND created_ms >= ?')
+      .get(ip, hourCutoff);
+    if (hourCount.c >= COMMENT_HOUR_LIMIT) {
+      return res.status(429).json({ message: '评论过于频繁，请稍后再试' });
+    }
+
+    const info = db
+      .prepare('INSERT INTO comments (article_id, nickname, email, content, ip) VALUES (?, ?, ?, ?, ?)')
+      .run(id, nickname, email, content, ip);
+    res.json({ success: true, id: info.lastInsertRowid, message: '评论发布成功' });
+  } catch (e) {
+    console.error('[comments.create]', e);
+    res.status(500).json({ message: '评论发布失败，请稍后重试' }); // BC-36
+  }
+});
+
 /* ================= 后台文章 API（管理员 + CSRF） ================= */
 // 文章管理列表（含检索：标题关键字 / 类别 / 标签）（REQ-19）
 app.get('/api/admin/articles', (req, res) => {
@@ -524,6 +624,8 @@ app.delete('/api/admin/articles/:id', requireAdminWrite, (req, res) => {
   try {
     const row = db.prepare('SELECT id FROM articles WHERE id = ?').get(id);
     if (!row) return res.status(404).json({ message: '文章不存在或已被删除' });
+    // 先显式清理评论（D1 版行为一致；本地 SQLite 亦有外键级联兜底）
+    db.prepare('DELETE FROM comments WHERE article_id = ?').run(id);
     db.prepare('DELETE FROM articles WHERE id = ?').run(id);
     res.json({ success: true, message: '删除成功' });
   } catch (e) {
@@ -542,6 +644,7 @@ app.post('/api/admin/articles/batch-delete', requireAdminWrite, (req, res) => {
       const existing = db.prepare(`SELECT id FROM articles WHERE id IN (${placeholders})`).all(...ids);
       const existIds = existing.map((r) => r.id);
       if (existIds.length) {
+        db.prepare(`DELETE FROM comments WHERE article_id IN (${placeholders})`).run(...existIds);
         db.prepare(`DELETE FROM articles WHERE id IN (${placeholders})`).run(...existIds);
       }
       return existIds.length;
@@ -550,6 +653,48 @@ app.post('/api/admin/articles/batch-delete', requireAdminWrite, (req, res) => {
     res.json({ success: true, deleted, message: `删除成功（${deleted} 篇）` });
   } catch (e) {
     console.error('[admin.articles.batchDelete]', e);
+    res.status(500).json({ message: '删除失败，请稍后重试' });
+  }
+});
+
+/* ================= 后台评论 API（REQ-32 / REQ-33） ================= */
+// 评论管理列表（需管理员会话；支持按文章 ID 检索）
+app.get('/api/admin/comments', (req, res) => {
+  if (!isSessionValid(req)) {
+    return res.status(401).json({ message: '未登录或会话已过期' });
+  }
+  const articleId = typeof req.query.articleId === 'string' ? Number(req.query.articleId) : NaN;
+  try {
+    let sql =
+      'SELECT c.id, c.article_id, a.title AS article_title, c.nickname, c.email, c.content, c.ip, c.created_at ' +
+      'FROM comments c LEFT JOIN articles a ON a.id = c.article_id';
+    const params = [];
+    if (Number.isInteger(articleId) && articleId > 0) {
+      sql += ' WHERE c.article_id = ?';
+      params.push(articleId);
+    }
+    sql += ' ORDER BY c.id DESC';
+    const rows = db.prepare(sql).all(...params);
+    res.json({ comments: rows });
+  } catch (e) {
+    console.error('[admin.comments.list]', e);
+    res.status(500).json({ message: '系统繁忙，请稍后重试' });
+  }
+});
+
+// 删除评论（管理员 + CSRF，复用 requireAdminWrite）（REQ-33 / BC-35）
+app.delete('/api/admin/comments/:id', requireAdminWrite, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(404).json({ message: '评论不存在或已被删除' });
+  }
+  try {
+    const row = db.prepare('SELECT id FROM comments WHERE id = ?').get(id);
+    if (!row) return res.status(404).json({ message: '评论不存在或已被删除' });
+    db.prepare('DELETE FROM comments WHERE id = ?').run(id);
+    res.json({ success: true, message: '删除成功' });
+  } catch (e) {
+    console.error('[admin.comments.delete]', e);
     res.status(500).json({ message: '删除失败，请稍后重试' });
   }
 });

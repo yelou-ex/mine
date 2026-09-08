@@ -173,6 +173,8 @@
         /* 表格横向滚动（小屏不破版） */
         .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         .table-scroll table { min-width: 560px; }
+        /* 评论管理 */
+        .cm-content { max-width: 220px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
         /* 手机端适配（≤ 768px） */
         @media (max-width: 768px) {
             .topbar { padding: 0 10px; height: 52px; }
@@ -249,6 +251,7 @@
     <div class="tabs">
         <button data-tab="list" class="active">文章列表</button>
         <button data-tab="add">添加文章</button>
+        <button data-tab="comments">评论管理</button>
     </div>
 
     <div class="container">
@@ -326,6 +329,37 @@
                 <button type="submit" class="btn-submit" id="submitBtn">发布文章</button>
             </form>
         </div>
+
+        <!-- 评论管理（REQ-32 / REQ-33） -->
+        <div id="panel-comments" class="panel card">
+            <div class="toolbar">
+                <input type="text" id="cmSearchArticleId" placeholder="按文章 ID 检索…" maxlength="10">
+                <button class="btn btn-primary" id="cmSearchBtn">检索</button>
+                <button class="btn btn-ghost" id="cmResetBtn">重置</button>
+            </div>
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="hide-mobile" style="width:60px;">ID</th>
+                            <th>所属文章</th>
+                            <th style="width:90px;">昵称</th>
+                            <th class="hide-mobile" style="width:150px;">邮箱</th>
+                            <th>评论内容</th>
+                            <th class="hide-mobile" style="width:110px;">IP</th>
+                            <th style="width:150px;">时间</th>
+                            <th style="width:70px;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cmBody"></tbody>
+                </table>
+            </div>
+            <div class="pager">
+                <button id="cmPrevPage">上一页</button>
+                <span class="info" id="cmPageInfo"></span>
+                <button id="cmNextPage">下一页</button>
+            </div>
+        </div>
     </div>
 
     <!-- 删除二次确认弹窗 -->
@@ -373,7 +407,10 @@
             var allArticles = [];     // 当前检索结果全集
             var page = 1;
             var pageSize = 10;
-            var pendingDelete = null; // { ids: [...], titles: [...] }
+            var pendingDelete = null; // 文章: { mode:'article', ids, titles }；评论: { mode:'comment', id, display }
+            var allComments = [];
+            var cmPage = 1;
+            var cmLoaded = false;
             var submitLocked = false;
             var editMode = false;     // true=编辑模式，false=添加模式
             var editingId = null;     // 正在编辑的文章 ID
@@ -506,7 +543,7 @@
 
             /* ---------- 删除二次确认 ---------- */
             function openConfirm(ids, titles) {
-                pendingDelete = { ids: ids, titles: titles };
+                pendingDelete = { mode: 'article', ids: ids, titles: titles };
                 $('modalTarget').textContent = titles.join('、');
                 $('modalDesc').textContent = ids.length > 1
                     ? '确定要删除选中的 ' + ids.length + ' 篇文章吗？删除后前台将立即下架，且不可恢复。'
@@ -531,6 +568,69 @@
                             loadList();
                         } else {
                             showError(r.data.message || '操作失败');
+                        }
+                    })
+                    .catch(function () {});
+            }
+
+            /* ---------- 评论管理（REQ-32 / REQ-33 / BC-35） ---------- */
+            function loadCommentsAdmin() {
+                var aid = $('cmSearchArticleId').value.trim();
+                var url = '/api/admin/comments' + (aid ? '?articleId=' + encodeURIComponent(aid) : '');
+                api(url)
+                    .then(function (r) {
+                        if (r.status !== 200) { showError(r.data.message || '加载失败'); return; }
+                        allComments = r.data.comments || [];
+                        cmPage = 1;
+                        renderCommentsAdmin();
+                    })
+                    .catch(function () {});
+            }
+            function renderCommentsAdmin() {
+                var body = $('cmBody');
+                var total = allComments.length;
+                var pages = Math.max(1, Math.ceil(total / pageSize));
+                if (cmPage > pages) cmPage = pages;
+                var start = (cmPage - 1) * pageSize;
+                var items = allComments.slice(start, start + pageSize);
+                if (!items.length) {
+                    body.innerHTML = '<tr><td colspan="8"><div class="empty-tip">暂无评论</div></td></tr>';
+                } else {
+                    body.innerHTML = items.map(function (c) {
+                        var link = c.article_title
+                            ? '<a href="/article.html?id=' + c.article_id + '" target="_blank" style="color:#2c3e50;text-decoration:none;">' + esc(c.article_title) + '</a>'
+                            : '<span style="color:#bdc3c7">（文章已删除）</span>';
+                        var display = '【' + c.nickname + '】' + (c.content.length > 40 ? c.content.slice(0, 40) + '…' : c.content);
+                        return '<tr>' +
+                            '<td class="hide-mobile">' + c.id + '</td>' +
+                            '<td>' + link + '</td>' +
+                            '<td>' + esc(c.nickname) + '</td>' +
+                            '<td class="hide-mobile">' + (c.email ? esc(c.email) : '<span style="color:#bdc3c7">—</span>') + '</td>' +
+                            '<td><div class="cm-content" title="' + esc(c.content) + '">' + esc(c.content) + '</div></td>' +
+                            '<td class="hide-mobile" style="color:#7f8c8d;">' + esc(c.ip) + '</td>' +
+                            '<td style="color:#7f8c8d;">' + esc(c.created_at) + '</td>' +
+                            '<td><button class="btn-del btn-cmdel" data-id="' + c.id + '" data-display="' + esc(display) + '">删除</button></td>' +
+                            '</tr>';
+                    }).join('');
+                }
+                $('cmPageInfo').textContent = '共 ' + total + ' 条 · 第 ' + cmPage + '/' + pages + ' 页';
+                $('cmPrevPage').disabled = cmPage <= 1;
+                $('cmNextPage').disabled = cmPage >= pages;
+            }
+            function openCommentConfirm(id, display) {
+                pendingDelete = { mode: 'comment', id: id, display: display };
+                $('modalDesc').textContent = '确定要删除以下评论吗？删除后前台将立即不可见，且不可恢复。';
+                $('modalTarget').textContent = display;
+                $('confirmModal').classList.add('show');
+            }
+            function doDeleteComment(id) {
+                api('/api/admin/comments/' + id, { method: 'DELETE' })
+                    .then(function (r) {
+                        if (r.status === 200) {
+                            toast(r.data.message || '删除成功');
+                            loadCommentsAdmin();
+                        } else if (r.status !== 401 && r.status !== 403) {
+                            showError(r.data.message || '删除失败，请稍后重试');
                         }
                     })
                     .catch(function () {});
@@ -648,8 +748,10 @@
                 });
                 $('panel-list').classList.toggle('active', name === 'list');
                 $('panel-add').classList.toggle('active', name === 'add');
+                $('panel-comments').classList.toggle('active', name === 'comments');
                 if (name === 'add') countChars();
                 if (name === 'list' && editMode) cancelEdit();
+                if (name === 'comments' && !cmLoaded) { cmLoaded = true; loadCommentsAdmin(); }
             }
 
             /* ---------- 事件绑定 ---------- */
@@ -687,6 +789,22 @@
                     loadArticleForEdit(id);
                 }
             });
+            /* ---------- 评论管理事件 ---------- */
+            $('cmSearchBtn').addEventListener('click', loadCommentsAdmin);
+            $('cmSearchArticleId').addEventListener('keydown', function (e) { if (e.key === 'Enter') loadCommentsAdmin(); });
+            $('cmResetBtn').addEventListener('click', function () {
+                $('cmSearchArticleId').value = '';
+                loadCommentsAdmin();
+            });
+            $('cmPrevPage').addEventListener('click', function () { if (cmPage > 1) { cmPage--; renderCommentsAdmin(); } });
+            $('cmNextPage').addEventListener('click', function () { if (cmPage * pageSize < allComments.length) { cmPage++; renderCommentsAdmin(); } });
+            $('cmBody').addEventListener('click', function (e) {
+                var btn = e.target.closest('.btn-cmdel');
+                if (!btn) return;
+                var id = Number(btn.getAttribute('data-id'));
+                var display = btn.getAttribute('data-display');
+                openCommentConfirm(id, display);
+            });
             $('batchDelBtn').addEventListener('click', function () {
                 var ids = selectedIds();
                 if (!ids.length) return;
@@ -702,6 +820,12 @@
             });
             $('modalConfirm').addEventListener('click', function () {
                 if (!pendingDelete) return;
+                if (pendingDelete.mode === 'comment') {
+                    var cid = pendingDelete.id;
+                    closeConfirm();
+                    doDeleteComment(cid);
+                    return;
+                }
                 var ids = pendingDelete.ids.slice();
                 closeConfirm();
                 doDelete(ids);

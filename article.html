@@ -63,6 +63,28 @@
         footer { background-color: #2c3e50; color: #ecf0f1; padding: 30px 0; text-align: center; }
         .copyright { font-size: 14px; }
         .post-tip { background-color: #fff; border-radius: 8px; padding: 40px 20px; text-align: center; color: #7f8c8d; margin: 30px 0; }
+        /* 评论区（REQ-25 / REQ-27） */
+        .comments-wrap { background-color: #fff; opacity: 0.95; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); padding: 24px 40px; margin: 0 0 30px; }
+        .comments-title { color: #2c3e50; font-size: 18px; margin: 0 0 14px; }
+        .comments-title .count { color: #7f8c8d; font-size: 14px; font-weight: normal; }
+        .comment-item { border-top: 1px solid #ecf0f1; padding: 14px 0; }
+        .comment-item:first-child { border-top: none; }
+        .comment-head { font-size: 13px; color: #7f8c8d; margin-bottom: 6px; }
+        .comment-head .nickname { color: #2c3e50; font-weight: bold; margin-right: 8px; }
+        .comment-content { font-size: 14.5px; color: #34495e; word-break: break-word; white-space: pre-wrap; }
+        .comment-empty { color: #7f8c8d; font-size: 14px; padding: 10px 0; }
+        .comment-form { border-top: 1px solid #ecf0f1; margin-top: 18px; padding-top: 18px; }
+        .comment-form .row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .comment-form input, .comment-form textarea { flex: 1; min-width: 0; border: 1px solid #dfe4e8; border-radius: 4px; padding: 8px 10px; font-size: 14px; font-family: inherit; }
+        .comment-form input:focus, .comment-form textarea:focus { outline: none; border-color: #3498db; }
+        .comment-form .field-name { flex: 0 0 42%; }
+        .comment-form textarea { resize: vertical; min-height: 80px; }
+        .comment-form .btn-submit { background: #3498db; color: #fff; border: none; border-radius: 4px; padding: 8px 22px; font-size: 14px; cursor: pointer; }
+        .comment-form .btn-submit:hover { background: #2980b9; }
+        .comment-form .btn-submit:disabled { background: #9dc9e8; cursor: not-allowed; }
+        .comment-msg { font-size: 13px; margin-top: 8px; min-height: 16px; }
+        .comment-msg.error { color: #e74c3c; }
+        .comment-msg.ok { color: #27ae60; }
         /* 手机端适配（≤ 768px） */
         @media (max-width: 768px) {
             .header-content { flex-direction: column; gap: 12px; }
@@ -71,6 +93,10 @@
             .article-wrap { padding: 20px 16px; margin: 16px 0; }
             .article-title { font-size: 20px; }
             .article-body { font-size: 14.5px; }
+            .comments-wrap { padding: 16px; margin: 0 0 16px; }
+            .comment-content { font-size: 14px; }
+            .comment-form .row { flex-direction: column; gap: 6px; }
+            .comment-form .field-name { flex: 1 1 auto; }
         }
     </style>
 </head>
@@ -93,6 +119,7 @@
         <div id="articleWrap">
             <div class="post-tip">文章加载中…</div>
         </div>
+        <div id="commentWrap"></div>
         <div class="back-bar"><a href="index.html">← 返回首页</a></div>
     </div>
 
@@ -154,9 +181,114 @@
                             (tags ? '<div class="article-tags">' + tags + '</div>' : '') +
                             '<div class="article-body">' + safeRender(a.content) + '</div>' +
                             '</article>';
+                        initComments();
                     })
                     .catch(function () {
                         document.getElementById('articleWrap').innerHTML = '<div class="post-tip">文章加载失败，请稍后重试</div>';
+                    });
+            }
+
+            /* ---------- 评论区（REQ-25 ~ 28 / BC-27 ~ 31） ---------- */
+            function initComments() {
+                document.getElementById('commentWrap').innerHTML =
+                    '<div class="comments-wrap">' +
+                    '<h2 class="comments-title">评论<span class="count" id="commentCount"></span></h2>' +
+                    '<div id="commentList"><div class="post-tip" style="padding:14px 0;margin:0;">评论加载中…</div></div>' +
+                    '<div class="comment-form">' +
+                    '<div class="row">' +
+                    '<input id="c-nickname" class="field-name" maxlength="20" placeholder="昵称（必填）">' +
+                    '<input id="c-email" type="email" maxlength="50" placeholder="邮箱（选填）">' +
+                    '</div>' +
+                    '<textarea id="c-content" maxlength="1000" placeholder="写下你的评论…（≤ 1000 字符）"></textarea>' +
+                    '<div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">' +
+                    '<button type="button" class="btn-submit" id="c-submit">发表评论</button>' +
+                    '<div id="c-msg" class="comment-msg"></div>' +
+                    '</div>' +
+                    '</div>' +
+                    '</div>';
+                loadComments();
+                document.getElementById('c-submit').addEventListener('click', submitComment);
+            }
+
+            function renderComments(data) {
+                document.getElementById('commentCount').textContent = '（' + data.count + '）';
+                var list = document.getElementById('commentList');
+                if (!data.comments.length) {
+                    list.innerHTML = '<div class="comment-empty">暂无评论，快来抢沙发</div>';
+                    return;
+                }
+                list.innerHTML = data.comments.map(function (c) {
+                    return '<div class="comment-item">' +
+                        '<div class="comment-head"><span class="nickname">' + esc(c.nickname) + '</span>' +
+                        esc(fmtDate(c.created_at)) + '</div>' +
+                        '<div class="comment-content">' + esc(c.content) + '</div>' +
+                        '</div>';
+                }).join('');
+            }
+
+            function loadComments() {
+                fetch('/api/articles/' + id + '/comments')
+                    .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+                    .then(function (r) {
+                        var list = document.getElementById('commentList');
+                        if (!list) return;
+                        if (r.status === 200) { renderComments(r.data); return; }
+                        list.innerHTML = '<div class="comment-empty">' + esc(r.data.message || '评论加载失败') + '</div>';
+                    })
+                    .catch(function () {
+                        var list = document.getElementById('commentList');
+                        if (list) list.innerHTML = '<div class="comment-empty">评论加载失败，请稍后重试</div>';
+                    });
+            }
+
+            var commentSubmitting = false;
+            function submitComment() {
+                if (commentSubmitting) return;
+                var nickname = document.getElementById('c-nickname').value.trim();
+                var email = document.getElementById('c-email').value.trim();
+                var content = document.getElementById('c-content').value;
+                var msg = document.getElementById('c-msg');
+                msg.className = 'comment-msg';
+                msg.textContent = '';
+                // 前端校验（REQ-26 / BC-27 ~ 30），与后端规则一致
+                if (!nickname) { msg.textContent = '昵称不能为空'; msg.classList.add('error'); return; }
+                if (nickname.length > 20) { msg.textContent = '昵称不能超过 20 个字符'; msg.classList.add('error'); return; }
+                if (!content.trim() || !content.replace(/<[^>]*>/g, '').trim()) {
+                    msg.textContent = '评论内容不能为空'; msg.classList.add('error'); return;
+                }
+                if (content.length > 1000) { msg.textContent = '评论内容不能超过 1000 个字符'; msg.classList.add('error'); return; }
+                if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                    msg.textContent = '邮箱格式不正确'; msg.classList.add('error'); return;
+                }
+                commentSubmitting = true;
+                var btn = document.getElementById('c-submit');
+                btn.disabled = true;
+                btn.textContent = '提交中…';
+                fetch('/api/articles/' + id + '/comments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nickname: nickname, email: email, content: content })
+                })
+                    .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+                    .then(function (r) {
+                        if (r.status === 200) {
+                            msg.textContent = r.data.message || '评论发布成功';
+                            msg.className = 'comment-msg ok';
+                            document.getElementById('c-content').value = '';
+                            loadComments();
+                        } else {
+                            msg.textContent = r.data.message || '评论发布失败，请稍后重试';
+                            msg.className = 'comment-msg error';
+                        }
+                    })
+                    .catch(function () {
+                        msg.textContent = '评论发布失败，请稍后重试';
+                        msg.className = 'comment-msg error';
+                    })
+                    .finally(function () {
+                        commentSubmitting = false;
+                        btn.disabled = false;
+                        btn.textContent = '发表评论';
                     });
             }
         })();

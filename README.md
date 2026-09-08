@@ -1,6 +1,6 @@
 # Yelou 个人博客（个人主页网站）
 
-个人主页网站后台管理系统，按《管理员登录与文章添加功能需求文档》v1.1 实现。
+个人主页网站后台管理系统，按《管理员登录与文章添加功能需求文档》v1.2 实现（Markdown 版：`管理员登录与文章添加功能需求文档.md`，Word 版同名 `.docx`）。
 文章维护不再依赖直接编辑 HTML 文件：管理员登录后台后，可在线发布、检索、删除文章，内容自动入库，前台即时展示。
 
 ## 功能一览（对应需求文档）
@@ -83,24 +83,28 @@ npm run test:cf   # 36 项用例（用 better-sqlite3 模拟 D1，覆盖登录/�
 │   └── api/[[path]].mjs   #   全量 API 路由
 ├── admin/
 │   ├── login.html         # 后台登录页
-│   └── dashboard.html     # 后台管理页（列表/检索/添加/删除/批量删除）
+│   └── dashboard.html     # 后台管理页（列表/检索/添加/删除/批量删除/评论管理）
 ├── index.html             # 前台首页（动态加载文章 + 分类筛选）
-├── article.html           # 前台文章详情页
+├── article.html           # 前台文章详情页（含评论区）
 ├── introduce.html / myway.html / honor.html   # 原有静态页面
 ├── picture/               # 图片资源
 ├── data/                  # 本地运行时数据（SQLite + 会话密钥，勿提交/勿公开）
 ├── test-e2e.mjs           # 本地 Express 版端到端测试（45 项）
-└── test-functions.mjs     # Cloudflare Functions 版测试（36 项）
+├── test-comments.mjs      # 评论功能端到端测试（本地 Express 版，22 项）
+└── test-functions.mjs     # Cloudflare Functions 版测试（57 项，含评论 21 项）
 ```
 
 ## 测试
 
 ```bash
-# 本地 Express 版（需先启动服务器）
+# 本地 Express 版（评论测试自带独立端口与临时数据库，无需启动服务器）
+node test-comments.mjs     # 22 项
+
+# 本地 Express 版完整 E2E（需先启动服务器）
 node test-e2e.mjs        # 45 项
 
 # Cloudflare Functions 版（无需服务器）
-npm run test:cf          # 36 项
+npm run test:cf          # 57 项
 ```
 
 ## API 一览
@@ -113,6 +117,10 @@ npm run test:cf          # 36 项
 | GET | `/api/csrf-token` | 管理员 | 获取 CSRF Token |
 | GET | `/api/articles` | 公开 | 文章列表（支持 `?category=`） |
 | GET | `/api/articles/:id` | 公开 | 文章详情 |
+| GET | `/api/articles/:id/comments` | 公开 | 文章评论列表（文章不存在 404） |
+| POST | `/api/articles/:id/comments` | 公开 | 发表评论（XSS 过滤 + 60s 防重复 + 按 IP 限流 10 条/小时） |
+| GET | `/api/admin/comments` | 管理员 | 评论管理列表（支持 `?articleId=` 检索） |
+| DELETE | `/api/admin/comments/:id` | 管理员+CSRF | 删除评论 |
 | GET | `/api/admin/articles` | 管理员 | 文章管理列表（支持 `?keyword=&category=`） |
 | POST | `/api/admin/articles` | 管理员+CSRF | 新增文章 |
 | DELETE | `/api/admin/articles/:id` | 管理员+CSRF | 删除文章 |
@@ -128,6 +136,7 @@ npm run test:cf          # 36 项
 - 文章内容 XSS 白名单过滤（去 script/事件属性/iframe）+ 前台渲染二次转义
 - 本地静态服务拦截源码/数据库下载；Cloudflare 端函数不暴露源码
 - 登录失败限流：同一账户连续 5 次失败锁定 15 分钟（D1 持久化），失败记录写登录日志表
+- 评论安全：内容去除全部 HTML 标签后以纯文本入库 + 前台渲染转义（双层 XSS 防御）；同 IP 60 秒内相同评论去重、每小时限 10 条（429 拦截）；删除文章时评论级联清理
 
 ## 已知限制 / 后续迭代（对应需求文档第 8、10 节）
 

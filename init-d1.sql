@@ -29,6 +29,19 @@ CREATE TABLE IF NOT EXISTS login_logs (
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+CREATE TABLE IF NOT EXISTS comments (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  article_id INTEGER NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+  nickname   TEXT NOT NULL,
+  email      TEXT NOT NULL DEFAULT '',
+  content    TEXT NOT NULL,
+  ip         TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  created_ms INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_comments_article ON comments (article_id);
+
 -- 插入默认管理员（密码: admin123）
 -- 注意：生产环境请立即修改密码
 INSERT OR IGNORE INTO admins (username, password_hash) 
