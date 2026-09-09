@@ -196,6 +196,44 @@ check('协议相对 link（//evil.com）→ 400', r.status === 400, `got ${r.sta
 r = await call('/api/admin/articles', { method: 'POST', body: { title: 'x', category: '博客', content: '<p>x</p>', link: 'data:text/html;base64,PHNjcmlwdD4=' }, csrf });
 check('data: link → 400', r.status === 400, `got ${r.status} ${r.text}`);
 
+// Markdown 格式 + 表格
+r = await call('/api/admin/articles', { method: 'POST', body: { title: 'MD表格测试', category: '博客', format: 'markdown', content: '## 你好\n\n| 甲 | 乙 |\n|---|---|\n| 1 | 2 |\n\n```js\nconsole.log(1)\n```\n' }, csrf });
+check('markdown 文章 → 200 发布成功', r.status === 200 && r.data.success, `got ${r.status} ${r.text}`);
+if (r.status === 200) {
+  const mdId = r.data.id;
+  const dm = await call('/api/articles/' + mdId);
+  check('md 详情：format=markdown 且源码保留', dm.status === 200 && dm.data.article.format === 'markdown' && dm.data.article.content.includes('| 甲 | 乙 |'), JSON.stringify(dm.data.article && dm.data.article.format));
+  const dl = await call('/api/articles');
+  const sumRow = (dl.data.articles || []).find((a) => a.id === mdId);
+  check('md 摘要无 md 语法残留', !!sumRow && /甲/.test(sumRow.summary) && sumRow.summary.indexOf('|') === -1, JSON.stringify(sumRow && sumRow.summary));
+  r = await call('/api/admin/articles/' + mdId, { method: 'PUT', body: { title: 'MD表格测试', category: '博客', format: 'markdown', content: '# 已更新\n' }, csrf });
+  check('md PUT 更新 → 200', r.status === 200, `got ${r.status}`);
+  await call('/api/admin/articles/' + mdId, { method: 'DELETE', csrf });
+}
+// HTML 表格白名单
+r = await call('/api/admin/articles', { method: 'POST', body: { title: '表格测试', category: '博客', content: '<table><thead><tr><th colspan="2">t</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table><script>alert(1)</script>' }, csrf });
+check('含表格 html 文章 → 200 发布成功', r.status === 200 && r.data.success, `got ${r.status} ${r.text}`);
+if (r.status === 200) {
+  const tId = r.data.id;
+  const dt = await call('/api/articles/' + tId);
+  check('表格标签与 colspan 保留', dt.data.article.content.includes('<td>') && dt.data.article.content.includes('colspan'), JSON.stringify(dt.data.article.content));
+  check('表格中的 script 被剥离', !/<script/i.test(dt.data.article.content || ''), JSON.stringify(dt.data.article.content));
+  await call('/api/admin/articles/' + tId, { method: 'DELETE', csrf });
+}
+
+// 浏览次数
+r = await call('/api/admin/articles', { method: 'POST', body: { title: '浏览次数测试', category: '博客', content: '<p>浏览</p>' }, csrf });
+check('浏览次数：发布新文章', r.status === 200, `got ${r.status} ${r.text}`);
+if (r.status === 200) {
+  const vId = r.data.id;
+  const v1 = (await call('/api/articles/' + vId)).data.article.views;
+  const v2 = (await call('/api/articles/' + vId)).data.article.views;
+  check('浏览次数：详情访问累计 +1（含当次）', v1 === 1 && v2 === 2, `v1=${v1} v2=${v2}`);
+  const va = (await call('/api/admin/articles?keyword=浏览次数')).data.articles.find((x) => x.id === vId);
+  check('浏览次数：后台列表可见', !!va && va.views === 2, JSON.stringify(va && va.views));
+  await call('/api/admin/articles/' + vId, { method: 'DELETE', csrf });
+}
+
 // XSS
 r = await call('/api/admin/articles', { method: 'POST', body: { title: 'XSS测试', category: '博客', content: '<p>安全内容</p><script>alert(1)</script><img src=x onerror=alert(2)><iframe src=evil></iframe>', tags: '安全' }, csrf });
 check('XSS 载荷提交成功', r.status === 200, `got ${r.status} ${r.text}`);

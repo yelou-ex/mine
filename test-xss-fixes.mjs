@@ -138,6 +138,7 @@ const good = [
   ['富文本基础标签', '<p>正文 <b>加粗</b> <code>code</code></p><ul><li>项</li></ul>', /<b>加粗<\/b>/],
   ['图片', '<img src="picture/成长.png" alt="成长">', /picture\/成长\.png/],
   ['pre/code', '<pre><code>console.log(1)</code></pre>', /console\.log\(1\)/],
+  ['表格', '<table><thead><tr><th colspan="2">表头</th></tr></thead><tbody><tr><td>单元格</td><td rowspan="2">跨行</td></tr></tbody></table>', /<table|colspan="2"|rowspan="2"/],
 ];
 for (const [name, input, keep] of good) {
   for (const [label, renderer] of [['DOMPurify', m.safeRender], ['本地回退', m.safeRenderLocal]]) {

@@ -43,17 +43,20 @@ const EMAIL_PATTERN = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 const COMMENT_DUP_WINDOW_MS = 60 * 1000;  // 同 IP + 同文章 + 同内容 60 秒内防重复
 const COMMENT_HOUR_LIMIT = 10;            // 同 IP 每小时最多 10 条
 
-// 内容 XSS 白名单（去除 script、事件属性、iframe 等）
+// 内容 XSS 白名单（去除 script、事件属性、iframe 等；表格标签支持 Markdown/HTML 表格）
 const SANITIZE_OPTIONS = {
   allowedTags: [
     'p', 'br', 'strong', 'em', 'b', 'i', 'u', 'del', 's',
     'ul', 'ol', 'li', 'a', 'img', 'span', 'div', 'hr',
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
     'blockquote', 'code', 'pre',
+    'table', 'thead', 'tbody', 'tr', 'th', 'td', 'caption',
   ],
   allowedAttributes: {
     a: ['href', 'title', 'target', 'rel'],
     img: ['src', 'alt', 'title'],
+    th: ['colspan', 'rowspan'],
+    td: ['colspan', 'rowspan'],
     '*': ['class'],
   },
   allowedSchemes: ['http', 'https', 'mailto'],
@@ -180,11 +183,21 @@ function validateArticle(body) {
   const link = sanitizeLink(rawLink);
   if (rawLink && !link) return { error: '跳转链接格式无效（仅允许站内相对路径或 http/https/mailto 链接）' };
 
-  // XSS 白名单过滤（REQ-17）
-  const content = sanitizeHtml(rawContent, SANITIZE_OPTIONS);
-  const textOnly = content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
-  if (!textOnly) return { error: '内容不能为空' };
-  if (content.length > MAX_CONTENT_LEN) return { error: `内容不能超过 ${MAX_CONTENT_LEN} 个字符` };
+  // 内容格式：'markdown' 时 content 为 md 源码（文章页 marked 渲染 + 白名单过滤，入库不剥离语法）；
+  // 缺省 'html' 维持原有富文本白名单管线
+  const format = body.format === 'markdown' ? 'markdown' : 'html';
+  let content;
+  if (format === 'markdown') {
+    content = rawContent;
+    if (!content.trim()) return { error: '内容不能为空' };
+    if (content.length > MAX_CONTENT_LEN) return { error: `内容不能超过 ${MAX_CONTENT_LEN} 个字符` };
+  } else {
+    // XSS 白名单过滤（REQ-17）
+    content = sanitizeHtml(rawContent, SANITIZE_OPTIONS);
+    const textOnly = content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    if (!textOnly) return { error: '内容不能为空' };
+    if (content.length > MAX_CONTENT_LEN) return { error: `内容不能超过 ${MAX_CONTENT_LEN} 个字符` };
+  }
 
   // 标签：逗号分隔、去空白、去重、格式校验
   let tags = [];
@@ -201,7 +214,7 @@ function validateArticle(body) {
     tags = [...new Set(tags)];
   }
 
-  return { value: { title, content, category, tags: tags.join(','), link } };
+  return { value: { title, content, category, tags: tags.join(','), link, format } };
 }
 
 /**
@@ -424,15 +437,36 @@ function makeSummary(content, maxLen = 120) {
   return text.length > maxLen ? text.slice(0, maxLen) + '…' : text;
 }
 
+// Markdown 源码 → 纯文本摘要（去掉 md 语法符号，保留正文文字；与 Cloudflare 版 mdToPlainText 一致）
+function mdToPlainText(md, maxLen = 120) {
+  let s = String(md == null ? '' : md);
+  s = s.replace(/```[\s\S]*?```/g, ' ');
+  s = s.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1');
+  s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+  s = s.replace(/`[^`]*`/g, '');
+  s = s.replace(/^[ \t]*#{1,6}[ \t]*/gm, '');
+  s = s.replace(/^[ \t]*(?:[-*+]|\d+[.)])[ \t]+/gm, '');
+  s = s.replace(/^>[ \t]?/gm, '');
+  s = s.replace(/^[ \t]*[-*_]{3,}[ \t]*$/gm, '');
+  s = s.replace(/\|/g, ' ');
+  s = s.replace(/[*_~]/g, '');
+  s = s.replace(/\s+/g, ' ').trim();
+  return s.length > maxLen ? s.slice(0, maxLen) + '…' : s;
+}
+
+function articleSummary(a) {
+  return a.format === 'markdown' ? mdToPlainText(a.content) : makeSummary(a.content);
+}
+
 app.get('/api/articles', (req, res) => {
   const category = typeof req.query.category === 'string' ? req.query.category.trim() : '';
   const keyword = typeof req.query.keyword === 'string' ? req.query.keyword.trim() : '';
   const tag = typeof req.query.tag === 'string' ? req.query.tag.trim() : '';
   try {
     const withSummary = (rows) =>
-      rows.map((a) => ({ ...a, link: sanitizeLink(a.link), summary: makeSummary(a.content) }));
+      rows.map((a) => ({ ...a, link: sanitizeLink(a.link), summary: articleSummary(a) }));
 
-    let sql = 'SELECT id, title, category, tags, link, content, created_at FROM articles WHERE 1=1';
+    let sql = 'SELECT id, title, category, tags, link, content, format, created_at FROM articles WHERE 1=1';
     const params = [];
     if (category) {
       sql += ' AND category = ?';
@@ -485,10 +519,16 @@ app.get('/api/articles/:id', (req, res) => {
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: '文章不存在' });
   try {
     const row = db
-      .prepare('SELECT id, title, content, category, tags, link, created_at FROM articles WHERE id = ?')
+      .prepare('SELECT id, title, content, category, tags, link, format, views, created_at FROM articles WHERE id = ?')
       .get(id);
     if (!row) return res.status(404).json({ message: '文章不存在' });
-    res.json({ article: { ...row, link: sanitizeLink(row.link) } });
+    // 浏览次数 +1（写失败不影响本次读取，单独兜底）
+    try {
+      db.prepare('UPDATE articles SET views = views + 1 WHERE id = ?').run(id);
+    } catch (e) {
+      console.error('[articles.views]', e);
+    }
+    res.json({ article: { ...row, link: sanitizeLink(row.link), views: row.views + 1 } });
   } catch (e) {
     console.error('[articles.detail]', e);
     res.status(500).json({ message: '系统繁忙，请稍后重试' });
@@ -562,7 +602,7 @@ app.get('/api/admin/articles', requireAdmin, (req, res) => {
   const tag = typeof req.query.tag === 'string' ? req.query.tag.trim() : '';
   try {
     // 后台列表显示全部文章（含带跳转链接的文章，可正常编辑/删除）
-    let sql = "SELECT id, title, category, tags, link, created_at FROM articles WHERE 1=1";
+    let sql = "SELECT id, title, category, tags, link, format, views, created_at FROM articles WHERE 1=1";
     const params = [];
     if (keyword) {
       sql += ' AND title LIKE ?';
@@ -590,7 +630,7 @@ app.post('/api/admin/articles', requireAdminWrite, (req, res) => {
   try {
     const result = validateArticle(req.body);
     if (result.error) return res.status(400).json({ message: result.error });
-    const { title, content, category, tags, link } = result.value;
+    const { title, content, category, tags, link, format } = result.value;
 
     // 防重复提交（REQ-18 / BC-19）：同一会话 5 秒内相同内容拒绝
     const sid = req.session.id;
@@ -623,8 +663,8 @@ app.post('/api/admin/articles', requireAdminWrite, (req, res) => {
       .get();
     const newId = nextRow ? nextRow.id : 1;
 
-    db.prepare('INSERT INTO articles (id, title, content, category, tags, link) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(newId, title, content, category, tags, link);
+    db.prepare('INSERT INTO articles (id, title, content, category, tags, link, format) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(newId, title, content, category, tags, link, format);
     res.json({ success: true, id: newId, message: '发布成功' });
   } catch (e) {
     console.error('[admin.articles.create]', e);
@@ -641,15 +681,15 @@ app.put('/api/admin/articles/:id', requireAdminWrite, (req, res) => {
   try {
     const result = validateArticle(req.body);
     if (result.error) return res.status(400).json({ message: result.error });
-    const { title, content, category, tags, link } = result.value;
+    const { title, content, category, tags, link, format } = result.value;
 
     // 验证文章存在
     const row = db.prepare('SELECT id FROM articles WHERE id = ?').get(id);
     if (!row) return res.status(404).json({ message: '文章不存在或已被删除' });
 
     db.prepare(
-      'UPDATE articles SET title = ?, content = ?, category = ?, tags = ?, link = ? WHERE id = ?'
-    ).run(title, content, category, tags, link, id);
+      'UPDATE articles SET title = ?, content = ?, category = ?, tags = ?, link = ?, format = ? WHERE id = ?'
+    ).run(title, content, category, tags, link, format, id);
     res.json({ success: true, message: '更新成功' });
   } catch (e) {
     console.error('[admin.articles.update]', e);

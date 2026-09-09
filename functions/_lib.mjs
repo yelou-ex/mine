@@ -165,10 +165,14 @@ const ALLOWED_TAGS = new Set([
   'p', 'br', 'strong', 'em', 'b', 'i', 'u', 'del', 's',
   'ul', 'ol', 'li', 'a', 'img', 'span', 'div', 'hr',
   'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'code', 'pre',
+  // 表格（Markdown GFM 表格与 HTML 表格共用）
+  'table', 'thead', 'tbody', 'tr', 'th', 'td', 'caption',
 ]);
 const ALLOWED_ATTRS = {
   a: new Set(['href', 'title', 'target', 'rel']),
   img: new Set(['src', 'alt', 'title']),
+  th: new Set(['colspan', 'rowspan']),
+  td: new Set(['colspan', 'rowspan']),
 };
 
 function escapeAttr(v) {
@@ -228,12 +232,33 @@ export function sanitizeLink(input) {
 }
 
 /* ================= 文章字段校验（与 Express 版规则一致） ================= */
+/* ================= 文章字段校验（与 Express 版规则一致） ================= */
+// Markdown 源码 → 纯文本摘要（用于列表页摘要：去掉 md 语法符号，保留正文文字）
+export function mdToPlainText(md, maxLen = 120) {
+  let s = String(md == null ? '' : md);
+  s = s.replace(/```[\s\S]*?```/g, ' ');                       // 代码块
+  s = s.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1');              // 图片 → alt
+  s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');               // 链接 → 文字
+  s = s.replace(/`[^`]*`/g, '');                                 // 行内代码
+  s = s.replace(/^[ \t]*#{1,6}[ \t]*/gm, '');                  // 标题
+  s = s.replace(/^[ \t]*(?:[-*+]|\d+[.)])[ \t]+/gm, '');       // 列表标记
+  s = s.replace(/^>[ \t]?/gm, '');                              // 引用
+  s = s.replace(/^[ \t]*[-*_]{3,}[ \t]*$/gm, '');              // 分隔线
+  s = s.replace(/\|/g, ' ');                                    // 表格竖线
+  s = s.replace(/[*_~]/g, '');                                  // 强调/删除线
+  s = s.replace(/\s+/g, ' ').trim();
+  return s.length > maxLen ? s.slice(0, maxLen) + '…' : s;
+}
+
 export function validateArticle(body) {
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const rawContent = typeof body.content === 'string' ? body.content : '';
   const category = typeof body.category === 'string' ? body.category.trim() : '';
   const rawTags = typeof body.tags === 'string' ? body.tags : '';
   const rawLink = typeof body.link === 'string' ? body.link.trim() : '';
+  // 内容格式：'markdown' 时 content 为 md 源码（前端 marked 渲染 + 白名单过滤，入库不剥离语法）；
+  // 缺省 'html' 维持原有富文本白名单管线
+  const format = body.format === 'markdown' ? 'markdown' : 'html';
 
   if (!title) return { error: '标题不能为空' };
   if (title.length > MAX_TITLE_LEN) return { error: `标题不能超过 ${MAX_TITLE_LEN} 个字符` };
@@ -244,10 +269,17 @@ export function validateArticle(body) {
   const link = sanitizeLink(rawLink);
   if (rawLink && !link) return { error: '跳转链接格式无效（仅允许站内相对路径或 http/https/mailto 链接）' };
 
-  const content = sanitizeHtml(rawContent);
-  const textOnly = content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
-  if (!textOnly) return { error: '内容不能为空' };
-  if (content.length > MAX_CONTENT_LEN) return { error: `内容不能超过 ${MAX_CONTENT_LEN} 个字符` };
+  let content;
+  if (format === 'markdown') {
+    content = rawContent; // md 源码原样入库（渲染与过滤在文章页完成）
+    if (!content.trim()) return { error: '内容不能为空' };
+    if (content.length > MAX_CONTENT_LEN) return { error: `内容不能超过 ${MAX_CONTENT_LEN} 个字符` };
+  } else {
+    content = sanitizeHtml(rawContent);
+    const textOnly = content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    if (!textOnly) return { error: '内容不能为空' };
+    if (content.length > MAX_CONTENT_LEN) return { error: `内容不能超过 ${MAX_CONTENT_LEN} 个字符` };
+  }
 
   let tags = [];
   if (rawTags.trim()) {
@@ -259,7 +291,7 @@ export function validateArticle(body) {
     }
     tags = [...new Set(tags)];
   }
-  return { value: { title, content, category, tags: tags.join(','), link } };
+  return { value: { title, content, category, tags: tags.join(','), link, format } };
 }
 
 /* ================= 评论字段校验（与 Express 版规则一致，REQ-25 ~ 33） ================= */
@@ -373,6 +405,12 @@ export async function ensureSchema(env) {
   const artCols = await env.DB.prepare('PRAGMA table_info(articles)').all();
   if (!artCols.results.some((c) => c.name === 'link')) {
     await env.DB.prepare("ALTER TABLE articles ADD COLUMN link TEXT NOT NULL DEFAULT ''").run();
+  }
+  if (!artCols.results.some((c) => c.name === 'format')) {
+    await env.DB.prepare("ALTER TABLE articles ADD COLUMN format TEXT NOT NULL DEFAULT 'html'").run();
+  }
+  if (!artCols.results.some((c) => c.name === 'views')) {
+    await env.DB.prepare('ALTER TABLE articles ADD COLUMN views INTEGER NOT NULL DEFAULT 0').run();
   }
   await env.DB.batch([
     env.DB.prepare("UPDATE articles SET link = 'introduce.html' WHERE title = '个人基本信息' AND link = ''"),

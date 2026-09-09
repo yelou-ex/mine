@@ -4,7 +4,7 @@
  * 逻辑与本地 Express 版（server.js）保持一致，运行于 Workers 无状态环境。
  */
 import {
-  json, parseCookies, sanitizeHtml, sanitizeLink, validateArticle, ensureSchema,
+  json, parseCookies, sanitizeHtml, sanitizeLink, validateArticle, ensureSchema, mdToPlainText,
   hashPassword, verifyPassword, createSessionToken, verifySessionToken,
   makeCookie, getAdminSession, getCsrfCookie,
   logLogin, checkLocked, recordLoginFailure, clearLoginFailures,
@@ -156,7 +156,7 @@ export async function onRequest(context) {
       const keyword = url.searchParams.get('keyword') || '';
       const tag = url.searchParams.get('tag') || '';
       
-      let sql = 'SELECT id, title, category, tags, link, content, created_at FROM articles WHERE 1=1';
+      let sql = 'SELECT id, title, category, tags, link, content, format, created_at FROM articles WHERE 1=1';
       const args = [];
       if (category) { sql += ' AND category = ?'; args.push(category); }
       if (keyword) { sql += ' AND title LIKE ?'; args.push(`%${keyword}%`); }
@@ -165,8 +165,13 @@ export async function onRequest(context) {
       
       const stmt = env.DB.prepare(sql);
       const rows = args.length ? await stmt.bind(...args).all() : await stmt.all();
-      // link 字段出参做协议白名单过滤（防 javascript:/data: 等 XSS 载荷）
-      return json({ articles: rows.results.map((a) => ({ ...a, link: sanitizeLink(a.link), summary: makeSummary(a.content) })) });
+      // link 字段出参做协议白名单过滤（防 javascript:/data: 等 XSS 载荷）；
+      // 摘要按内容格式生成（markdown 走 md 语法剥离，html 走标签剥离）
+      return json({ articles: rows.results.map((a) => ({
+        ...a,
+        link: sanitizeLink(a.link),
+        summary: a.format === 'markdown' ? mdToPlainText(a.content) : makeSummary(a.content),
+      })) });
     }
 
     // 标签统计（标签云）
@@ -188,11 +193,15 @@ export async function onRequest(context) {
     const detailMatch = path.match(/^\/api\/articles\/(\d+)$/);
     if (detailMatch && method === 'GET') {
       const row = await env.DB.prepare(
-        'SELECT id, title, content, category, tags, link, created_at FROM articles WHERE id = ?'
+        'SELECT id, title, content, category, tags, link, format, views, created_at FROM articles WHERE id = ?'
       ).bind(Number(detailMatch[1])).first();
       // 信息级加固：公开接口不透露“删除”操作的存在，统一为中性 404 文案
       if (!row) return json({ message: '文章不存在' }, 404);
-      return json({ article: { ...row, link: sanitizeLink(row.link) } });
+      // 浏览次数 +1（写失败不影响本次读取，单独兜底）
+      try {
+        await env.DB.prepare('UPDATE articles SET views = views + 1 WHERE id = ?').bind(Number(detailMatch[1])).run();
+      } catch (e) { /* 忽略计数写失败 */ }
+      return json({ article: { ...row, link: sanitizeLink(row.link), views: (row.views || 0) + 1 } });
     }
 
     /* ---------- 前台评论（REQ-25 ~ 31 / BC-27 ~ 36） ---------- */
@@ -250,7 +259,7 @@ export async function onRequest(context) {
         const keyword = url.searchParams.get('keyword') || '';
         const category = url.searchParams.get('category') || '';
         const tag = url.searchParams.get('tag') || '';
-        let sql = "SELECT id, title, category, tags, link, created_at FROM articles WHERE 1=1";
+        let sql = "SELECT id, title, category, tags, link, format, views, created_at FROM articles WHERE 1=1";
         const args = [];
         if (keyword) { sql += ' AND title LIKE ?'; args.push(`%${keyword}%`); }
         if (category) { sql += ' AND category = ?'; args.push(category); }
@@ -268,7 +277,7 @@ export async function onRequest(context) {
         if (!body) return json({ message: '请求体格式错误' }, 400);
         const result = validateArticle(body);
         if (result.error) return json({ message: result.error }, 400);
-        const { title, content, category, tags, link } = result.value;
+        const { title, content, category, tags, link, format } = result.value;
 
         const fingerprint = await sha256Fingerprint(`${title}\u0000${content.slice(0, 300)}`);
         if (await isDuplicateSubmit(env, fingerprint)) {
@@ -286,8 +295,8 @@ export async function onRequest(context) {
         ).first();
         const newId = nextRow ? nextRow.id : 1;
         await env.DB.prepare(
-          'INSERT INTO articles (id, title, content, category, tags, link) VALUES (?, ?, ?, ?, ?, ?)'
-        ).bind(newId, title, content, category, tags, link).run();
+          'INSERT INTO articles (id, title, content, category, tags, link, format) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        ).bind(newId, title, content, category, tags, link, format).run();
         return json({ success: true, id: newId, message: '发布成功' });
       }
       return json({ message: '接口不存在' }, 404);
@@ -308,10 +317,10 @@ export async function onRequest(context) {
       const row = await env.DB.prepare('SELECT id FROM articles WHERE id = ?').bind(id).first();
       if (!row) return json({ message: '文章不存在或已被删除' }, 404);
 
-      const { title, content, category, tags, link } = result.value;
+      const { title, content, category, tags, link, format } = result.value;
       await env.DB.prepare(
-        'UPDATE articles SET title = ?, content = ?, category = ?, tags = ?, link = ? WHERE id = ?'
-      ).bind(title, content, category, tags, link, id).run();
+        'UPDATE articles SET title = ?, content = ?, category = ?, tags = ?, link = ?, format = ? WHERE id = ?'
+      ).bind(title, content, category, tags, link, format, id).run();
       return json({ success: true, message: '更新成功' });
     }
 

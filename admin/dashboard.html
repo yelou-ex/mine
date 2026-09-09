@@ -157,6 +157,23 @@
         .form-group .hint { font-size: 12px; color: #95a5a6; margin-top: 5px; }
         .char-count { font-size: 12px; color: #95a5a6; text-align: right; margin-top: 4px; }
         .char-count.over { color: #e74c3c; }
+        .preview-toggle { float: right; font-size: 12px; color: #3498db; cursor: pointer; user-select: none; margin-top: -2px; }
+        .preview-toggle:hover { text-decoration: underline; }
+        .preview-box {
+            display: none; border: 1px dashed #dfe4e8; border-radius: 6px; background: #fbfcfd;
+            padding: 14px 16px; margin-top: 10px; max-height: 340px; overflow: auto;
+            font-size: 14px; line-height: 1.7; color: #34495e;
+        }
+        .preview-box.show { display: block; }
+        .preview-box table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+        .preview-box th, .preview-box td { border: 1px solid #e3e8ee; padding: 6px 10px; text-align: left; }
+        .preview-box th { background: #f2f5f9; font-weight: 600; }
+        .preview-box pre { background: #f6f8fa; padding: 10px 12px; border-radius: 4px; overflow-x: auto; }
+        .preview-box code { font-family: Consolas, monospace; font-size: 13px; }
+        .preview-box img { max-width: 100%; border-radius: 4px; }
+        .preview-box .md-fallback { white-space: pre-wrap; font-size: 13px; color: #7f8c8d; }
+        .md-upload { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .md-upload input[type="file"] { font-size: 13px; color: #7f8c8d; }
         .btn-submit {
             background: #27ae60;
             color: #fff;
@@ -236,6 +253,9 @@
         .modal .btn-confirm-del { background: #e74c3c; color: #fff; }
         .modal .btn-confirm-del:hover { background: #c0392b; }
     </style>
+    <!-- 内容预览：marked（本地打包，Markdown → HTML）+ DOMPurify（CDN；预览 HTML 白名单过滤，防上传 md / HTML 内容在管理员会话内执行脚本；不可用时预览降级为转义纯文本） -->
+    <script src="../js/marked.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 </head>
 <body>
     <div class="topbar">
@@ -284,6 +304,7 @@
                             <th>标题</th>
                             <th style="width:90px;">类别</th>
                             <th class="hide-mobile" style="width:180px;">标签</th>
+                            <th class="hide-mobile" style="width:70px;">浏览次数</th>
                             <th style="width:150px;">发布时间</th>
                             <th style="width:90px;">操作</th>
                         </tr>
@@ -322,9 +343,24 @@
                     <div class="hint">仅允许站内相对路径或 http/https/mailto 链接；填写后首页卡片"阅读更多"直接跳转到该链接</div>
                 </div>
                 <div class="form-group">
-                    <label for="f-content">内容 <span class="req">*</span></label>
-                    <textarea id="f-content" placeholder="支持基本的 HTML 排版：段落、加粗、列表、链接、图片等（≤ 50,000 字符）"></textarea>
+                    <label for="f-format">内容格式 <span class="req">*</span></label>
+                    <select id="f-format">
+                        <option value="html">HTML 富文本（默认，支持 &lt;table&gt; 表格等标签）</option>
+                        <option value="markdown">Markdown（支持 # 标题 / 列表 / 代码块 / 表格 | a | b | / 链接等语法）</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="f-content">内容 <span class="req">*</span><span class="preview-toggle" id="previewToggle">预览</span></label>
+                    <textarea id="f-content" placeholder="支持基本的 HTML 排版：段落、加粗、列表、链接、图片、表格（&lt;table&gt;&lt;tr&gt;&lt;th&gt;…）等（≤ 50,000 字符）"></textarea>
                     <div class="char-count"><span id="contentCount">0</span>/50000</div>
+                    <div class="preview-box" id="f-preview"></div>
+                </div>
+                <div class="form-group">
+                    <label>上传 .md 文件作文章（选填）</label>
+                    <div class="md-upload">
+                        <input type="file" id="f-mdfile" accept=".md,.markdown">
+                        <span style="font-size:12px;color:#95a5a6;">选择后自动载入内容（文件名作标题、格式切为 Markdown），再点「发布文章」</span>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="f-tags">标签（选填）</label>
@@ -512,7 +548,7 @@
                 var start = (page - 1) * pageSize;
                 var items = allArticles.slice(start, start + pageSize);
                 if (!items.length) {
-                    body.innerHTML = '<tr><td colspan="7"><div class="empty-tip">暂无文章，去「添加文章」发布第一篇吧</div></td></tr>';
+                    body.innerHTML = '<tr><td colspan="8"><div class="empty-tip">暂无文章，去「添加文章」发布第一篇吧</div></td></tr>';
                 } else {
                     body.innerHTML = items.map(function (a) {
                         var tags = a.tags ? a.tags.split(',').map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; }).join('') : '<span style="color:#bdc3c7">—</span>';
@@ -522,6 +558,7 @@
                             '<td><a href="/article?id=' + a.id + '" target="_blank" style="color:#2c3e50;text-decoration:none;">' + esc(a.title) + '</a></td>' +
                             '<td>' + esc(a.category) + '</td>' +
                             '<td class="hide-mobile">' + tags + '</td>' +
+                            '<td class="hide-mobile" style="color:#7f8c8d;">' + (a.views != null ? a.views : 0) + '</td>' +
                             '<td style="color:#7f8c8d;">' + esc(a.created_at) + '</td>' +
                             '<td><button class="btn-edit" data-id="' + a.id + '" data-title="' + esc(a.title).replace(/"/g, '&quot;') + '" style="background:#3498db;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px;margin-right:6px;">编辑</button><button class="btn-del" data-id="' + a.id + '" data-title="' + esc(a.title).replace(/"/g, '&quot;') + '">删除</button></td>' +
                             '</tr>';
@@ -653,6 +690,8 @@
                         $('f-content').value = a.content;
                         $('f-tags').value = a.tags || '';
                         $('f-link').value = a.link || '';
+                        $('f-format').value = a.format === 'markdown' ? 'markdown' : 'html';
+                        updateContentPlaceholder();
                         editMode = true;
                         editingId = id;
                         $('submitBtn').textContent = '保存修改';
@@ -668,6 +707,8 @@
                 $('f-id').value = '';
                 $('articleForm').reset();
                 $('submitBtn').textContent = '发布文章';
+                $('f-preview').classList.remove('show');
+                updateContentPlaceholder();
                 countChars();
             }
             function updateArticle() {
@@ -687,7 +728,7 @@
                 var btn = $('submitBtn');
                 btn.disabled = true;
                 btn.textContent = '保存中...';
-                api('/api/admin/articles/' + editingId, { method: 'PUT', body: { title: title, category: category, content: content, tags: tags, link: link } })
+                api('/api/admin/articles/' + editingId, { method: 'PUT', body: { title: title, category: category, content: content, tags: tags, link: link, format: currentFormat() } })
                     .then(function (r) {
                         if (r.status === 200) {
                             toast(r.data.message || '更新成功');
@@ -712,6 +753,57 @@
                 $('contentCount').textContent = c;
                 $('contentCount').parentElement.classList.toggle('over', c > 50000);
             }
+            /* ---------- 内容格式 / Markdown 预览 / .md 上传 ---------- */
+            function currentFormat() {
+                return $('f-format').value === 'markdown' ? 'markdown' : 'html';
+            }
+            function updateContentPlaceholder() {
+                $('f-content').placeholder = currentFormat() === 'markdown'
+                    ? 'Markdown 源码：# 标题、- 列表、| 表格 |、`代码`、[链接](url)、![图片](url)（≤ 50,000 字符）'
+                    : '支持基本的 HTML 排版：段落、加粗、列表、链接、图片、表格（<table><tr><th>…）等（≤ 50,000 字符）';
+            }
+            // 预览渲染：markdown 用 marked 转 HTML；结果统一经 DOMPurify 白名单过滤再展示，
+            // 防止上传的 md / 手写 HTML 在管理员会话内执行脚本；DOMPurify 不可用时降级为转义纯文本
+            function previewContent() {
+                var box = $('f-preview');
+                var src = $('f-content').value;
+                var html;
+                if (currentFormat() === 'markdown') {
+                    html = (window.marked && typeof window.marked.parse === 'function') ? window.marked.parse(src) : null;
+                } else {
+                    html = src;
+                }
+                if (!src.trim()) { box.classList.remove('show'); box.innerHTML = ''; return; }
+                if (html != null && window.DOMPurify) {
+                    box.innerHTML = window.DOMPurify.sanitize(html, {
+                        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'del', 's',
+                            'ul', 'ol', 'li', 'a', 'img', 'span', 'div', 'hr',
+                            'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'code', 'pre',
+                            'table', 'thead', 'tbody', 'tr', 'th', 'td', 'caption'],
+                        ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'src', 'alt', 'colspan', 'rowspan'],
+                    });
+                } else {
+                    box.innerHTML = '<div class="md-fallback">' + esc(html != null ? html : src) + '</div>';
+                }
+                box.classList.add('show');
+            }
+            function loadMdFile(file) {
+                if (!file || !/\.(md|markdown)$/i.test(file.name)) { showError('请选择 .md / .markdown 文件'); return; }
+                if (file.size > 50000) { showError('文件超过 50,000 字符上限'); return; }
+                var reader = new FileReader();
+                reader.onload = function () {
+                    var text = String(reader.result || '');
+                    if (!text.trim()) { showError('文件内容为空'); return; }
+                    if (!$('f-title').value.trim()) $('f-title').value = file.name.replace(/\.(md|markdown)$/i, '');
+                    $('f-format').value = 'markdown';
+                    $('f-content').value = text;
+                    updateContentPlaceholder();
+                    countChars();
+                    toast('已载入「' + file.name + '」，点击「发布文章」保存', 'ok');
+                };
+                reader.onerror = function () { showError('文件读取失败，请重试'); };
+                reader.readAsText(file, 'utf-8');
+            }
             function submitArticle() {
                 if (submitLocked) return;
                 var title = $('f-title').value.trim();
@@ -729,7 +821,7 @@
                 var btn = $('submitBtn');
                 btn.disabled = true;
                 btn.textContent = '发布中...';
-                api('/api/admin/articles', { method: 'POST', body: { title: title, category: category, content: content, tags: tags, link: link } })
+                api('/api/admin/articles', { method: 'POST', body: { title: title, category: category, content: content, tags: tags, link: link, format: currentFormat() } })
                     .then(function (r) {
                         if (r.status === 200) {
                             toast(r.data.message || '发布成功');
@@ -897,6 +989,9 @@
             });
             $('f-title').addEventListener('input', countChars);
             $('f-content').addEventListener('input', countChars);
+            $('f-format').addEventListener('change', updateContentPlaceholder);
+            $('previewToggle').addEventListener('click', previewContent);
+            $('f-mdfile').addEventListener('change', function () { loadMdFile(this.files[0]); this.value = ''; });
 
             init();
         })();

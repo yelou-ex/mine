@@ -62,6 +62,8 @@ db.exec(`
     category   TEXT NOT NULL,
     tags       TEXT NOT NULL DEFAULT '',
     link       TEXT NOT NULL DEFAULT '',
+    format     TEXT NOT NULL DEFAULT 'html',  -- html | markdown（markdown 时 content 为 md 源码）
+    views      INTEGER NOT NULL DEFAULT 0,    -- 浏览次数（详情页访问时 +1，后台可见）
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
   );
 
@@ -95,6 +97,14 @@ function migrate() {
   if (!cols.some((c) => c.name === 'link')) {
     db.prepare("ALTER TABLE articles ADD COLUMN link TEXT NOT NULL DEFAULT ''").run();
     console.log('[db] 已迁移：articles 表新增 link 列');
+  }
+  if (!cols.some((c) => c.name === 'format')) {
+    db.prepare("ALTER TABLE articles ADD COLUMN format TEXT NOT NULL DEFAULT 'html'").run();
+    console.log('[db] 已迁移：articles 表新增 format 列（html | markdown）');
+  }
+  if (!cols.some((c) => c.name === 'views')) {
+    db.prepare('ALTER TABLE articles ADD COLUMN views INTEGER NOT NULL DEFAULT 0').run();
+    console.log('[db] 已迁移：articles 表新增 views 列（浏览次数）');
   }
   const upd = db.prepare("UPDATE articles SET link = ? WHERE title = ? AND link = ''");
   upd.run('introduce.html', '个人基本信息');

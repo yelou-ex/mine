@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="杨楼的个人博客文章页：学习笔记与生活感悟。">
+    <meta property="og:title" content="文章详情 - yelou的个人博客">
+    <meta property="og:description" content="杨楼的个人博客文章页：学习笔记与生活感悟。">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://yelou.pages.dev/article">
     <title>文章详情 - yelou的个人博客</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Arial', 'Microsoft YaHei', sans-serif; }
@@ -57,6 +62,14 @@
         }
         .article-body code { font-family: Consolas, monospace; }
         .article-body h1,.article-body h2,.article-body h3,.article-body h4 { color: #2c3e50; margin: 20px 0 10px; }
+        /* 表格（Markdown GFM 表格 / HTML 表格共用） */
+        .article-body table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14.5px; }
+        .article-body th, .article-body td { border: 1px solid #e3e8ee; padding: 8px 12px; text-align: left; }
+        .article-body th { background: #f2f5f9; color: #2c3e50; font-weight: 600; }
+        .article-body tr:nth-child(even) td { background: #fafbfc; }
+        .article-body caption { caption-side: bottom; color: #7f8c8d; font-size: 13px; padding-top: 6px; }
+        .article-body .md-fallback { background: #f6f8fa; padding: 14px 16px; border-radius: 6px; white-space: pre-wrap; font-size: 14px; }
+        .table-scroll { overflow-x: auto; }
         .back-bar { margin: 24px 0 0; }
         .back-bar a { color: #7f8c8d; font-size: 14px; }
         .back-bar a:hover { color: #3498db; }
@@ -139,6 +152,8 @@
 
     <!-- DOMPurify：文章富文本的前端 XSS 二次过滤库；CDN 不可用时内联脚本自动回退到强化版本地白名单渲染器 -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <!-- marked（本地打包）：Markdown 格式文章的源码 → HTML 渲染器；不可用时回退为原文纯文本展示（esc 转义，无 XSS 面） -->
+    <script src="js/marked.js"></script>
     <script>
         // 文章详情：从后端 API 加载；渲染前做前端白名单二次过滤（防 XSS 第二道防线）
         (function () {
@@ -150,8 +165,14 @@
             // 白名单与后端（functions/_lib.mjs）保持一致：标签/属性
             var ALLOWED_TAGS = ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'del', 's',
                 'ul', 'ol', 'li', 'a', 'img', 'span', 'div', 'hr',
-                'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'code', 'pre'];
-            var ALLOWED_ATTRS = { a: ['href', 'title', 'target', 'rel'], img: ['src', 'alt', 'title'] };
+                'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'code', 'pre',
+                'table', 'thead', 'tbody', 'tr', 'th', 'td', 'caption'];
+            var ALLOWED_ATTRS = {
+                a: ['href', 'title', 'target', 'rel'],
+                img: ['src', 'alt', 'title'],
+                th: ['colspan', 'rowspan'],
+                td: ['colspan', 'rowspan']
+            };
             var SAFE_SCHEMES = { http: 1, https: 1, mailto: 1 };
 
             // URI 安全检查：仅允许 http/https/mailto、相对路径与锚点；
@@ -195,10 +216,19 @@
                 if (window.DOMPurify) {
                     return window.DOMPurify.sanitize(String(html == null ? '' : html), {
                         ALLOWED_TAGS: ALLOWED_TAGS,
-                        ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'src', 'alt'],
+                        ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'src', 'alt', 'colspan', 'rowspan'],
                     });
                 }
                 return safeRenderLocal(html);
+            }
+
+            // Markdown 渲染：marked（CDN）转 HTML 后仍走 safeRender 白名单过滤（二次防线）；
+            // CDN 不可用时回退为 esc 转义后的纯文本展示（可读、无 XSS 面）
+            function renderMarkdown(md) {
+                if (window.marked && typeof window.marked.parse === 'function') {
+                    return safeRender(window.marked.parse(String(md == null ? '' : md)));
+                }
+                return '<div class="md-fallback">' + esc(md) + '</div>';
             }
 
             // DOMPurify 钩子：在默认规则之外强制 URI 协议白名单（作用于实体解码后的属性值，
@@ -243,12 +273,26 @@
                             .map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; })
                             .join('');
                         document.title = a.title + ' - yelou的个人博客';
+                        // 动态刷新 SEO / 社交 meta（爬虫首抓读壳内默认值，社交分享读动态值）
+                        var metaDesc = document.querySelector('meta[name="description"]');
+                        if (metaDesc) {
+                            var t = String(a.content || '').replace(/<[^>]*>/g, ' ').replace(/[#*`|~>-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+                            metaDesc.setAttribute('content', t ? t + ' - yelou的个人博客' : '文章详情 - yelou的个人博客');
+                        }
+                        var ogT = document.querySelector('meta[property="og:title"]');
+                        if (ogT) ogT.setAttribute('content', a.title + ' - yelou的个人博客');
+                        var ogD = document.querySelector('meta[property="og:description"]');
+                        if (ogD && metaDesc) ogD.setAttribute('content', metaDesc.getAttribute('content'));
+                        var ogU = document.querySelector('meta[property="og:url"]');
+                        if (ogU) ogU.setAttribute('content', location.href);
+                        // 按内容格式渲染：markdown 走 marked + 白名单过滤；html 走原有白名单管线
+                        var bodyHtml = (a.format === 'markdown') ? renderMarkdown(a.content) : safeRender(a.content);
                         wrap.innerHTML =
                             '<article class="article-wrap">' +
                             '<h1 class="article-title">' + esc(a.title) + '</h1>' +
-                            '<div class="article-meta">发布于: ' + fmtDate(a.created_at) + ' | 分类: ' + esc(a.category) + '</div>' +
+                            '<div class="article-meta">发布于: ' + fmtDate(a.created_at) + ' | 分类: ' + esc(a.category) + (a.format === 'markdown' ? ' | Markdown' : '') + '</div>' +
                             (tags ? '<div class="article-tags">' + tags + '</div>' : '') +
-                            '<div class="article-body">' + safeRender(a.content) + '</div>' +
+                            '<div class="table-scroll"><div class="article-body">' + bodyHtml + '</div></div>' +
                             '</article>';
                         initComments();
                     })

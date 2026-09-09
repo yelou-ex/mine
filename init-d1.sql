@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS articles (
   category   TEXT NOT NULL,
   tags       TEXT NOT NULL DEFAULT '',
   link       TEXT NOT NULL DEFAULT '',
+  format     TEXT NOT NULL DEFAULT 'html',  -- html | markdown（markdown 时 content 为 md 源码）
+  views      INTEGER NOT NULL DEFAULT 0,    -- 浏览次数（详情页访问时 +1，后台可见）
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
