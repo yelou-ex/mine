@@ -317,6 +317,11 @@
                     </select>
                 </div>
                 <div class="form-group">
+                    <label for="f-link">跳转链接（选填）</label>
+                    <input type="text" id="f-link" maxlength="500" placeholder="如 introduce.html 或 https://example.com；留空则卡片进入文章页">
+                    <div class="hint">仅允许站内相对路径或 http/https/mailto 链接；填写后首页卡片"阅读更多"直接跳转到该链接</div>
+                </div>
+                <div class="form-group">
                     <label for="f-content">内容 <span class="req">*</span></label>
                     <textarea id="f-content" placeholder="支持基本的 HTML 排版：段落、加粗、列表、链接、图片等（≤ 50,000 字符）"></textarea>
                     <div class="char-count"><span id="contentCount">0</span>/50000</div>
@@ -647,6 +652,7 @@
                         $('f-category').value = a.category;
                         $('f-content').value = a.content;
                         $('f-tags').value = a.tags || '';
+                        $('f-link').value = a.link || '';
                         editMode = true;
                         editingId = id;
                         $('submitBtn').textContent = '保存修改';
@@ -670,6 +676,7 @@
                 var category = $('f-category').value;
                 var content = $('f-content').value;
                 var tags = $('f-tags').value.trim();
+                var link = $('f-link').value.trim();
                 // 前端校验
                 if (!title) { showError('标题不能为空'); return; }
                 if (title.length > 100) { showError('标题不能超过 100 个字符'); return; }
@@ -680,7 +687,7 @@
                 var btn = $('submitBtn');
                 btn.disabled = true;
                 btn.textContent = '保存中...';
-                api('/api/admin/articles/' + editingId, { method: 'PUT', body: { title: title, category: category, content: content, tags: tags } })
+                api('/api/admin/articles/' + editingId, { method: 'PUT', body: { title: title, category: category, content: content, tags: tags, link: link } })
                     .then(function (r) {
                         if (r.status === 200) {
                             toast(r.data.message || '更新成功');
@@ -711,6 +718,7 @@
                 var category = $('f-category').value;
                 var content = $('f-content').value;
                 var tags = $('f-tags').value.trim();
+                var link = $('f-link').value.trim();
                 // 前端校验（REQ-14 / BC-12 / BC-14 / BC-16）
                 if (!title) { showError('标题不能为空'); return; }
                 if (title.length > 100) { showError('标题不能超过 100 个字符'); return; }
@@ -721,7 +729,7 @@
                 var btn = $('submitBtn');
                 btn.disabled = true;
                 btn.textContent = '发布中...';
-                api('/api/admin/articles', { method: 'POST', body: { title: title, category: category, content: content, tags: tags } })
+                api('/api/admin/articles', { method: 'POST', body: { title: title, category: category, content: content, tags: tags, link: link } })
                     .then(function (r) {
                         if (r.status === 200) {
                             toast(r.data.message || '发布成功');

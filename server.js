@@ -32,6 +32,7 @@ const MAX_TITLE_LEN = 100;
 const MAX_CONTENT_LEN = 50000;
 const MAX_TAG_COUNT = 5;
 const MAX_TAG_LEN = 20;
+const MAX_LINK_LEN = 500;                      // 卡片跳转链接（link 字段）长度上限
 const TAG_PATTERN = /^[\u4e00-\u9fa5A-Za-z0-9_-]+$/; // 中文/英文/数字/下划线/连字符
 
 /* 评论（REQ-25 ~ 33 / BC-27 ~ 36） */
@@ -153,17 +154,31 @@ function requireAdminWrite(req, res, next) {
   next();
 }
 
+// 读接口：仅校验管理员身份（与 Cloudflare 版后台列表/评论列表的鉴权行为一致）
+function requireAdmin(req, res, next) {
+  if (!isSessionValid(req)) {
+    return res.status(401).json({ message: '未登录或会话已过期，请重新登录' });
+  }
+  next();
+}
+
 // 文章字段校验（前端 + 后端双重校验；校验规则见 5.3.2）
 function validateArticle(body) {
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const rawContent = typeof body.content === 'string' ? body.content : '';
   const category = typeof body.category === 'string' ? body.category.trim() : '';
   const rawTags = typeof body.tags === 'string' ? body.tags : '';
+  const rawLink = typeof body.link === 'string' ? body.link.trim() : '';
 
   if (!title) return { error: '标题不能为空' };
   if (title.length > MAX_TITLE_LEN) return { error: `标题不能超过 ${MAX_TITLE_LEN} 个字符` };
 
   if (!ALLOWED_CATEGORIES.includes(category)) return { error: '请选择有效类别' };
+
+  // 卡片跳转链接（选填）：空串合法；非空必须通过协议白名单（防 javascript:/data: 等 XSS 载荷）
+  if (rawLink.length > MAX_LINK_LEN) return { error: `跳转链接不能超过 ${MAX_LINK_LEN} 个字符` };
+  const link = sanitizeLink(rawLink);
+  if (rawLink && !link) return { error: '跳转链接格式无效（仅允许站内相对路径或 http/https/mailto 链接）' };
 
   // XSS 白名单过滤（REQ-17）
   const content = sanitizeHtml(rawContent, SANITIZE_OPTIONS);
@@ -186,7 +201,7 @@ function validateArticle(body) {
     tags = [...new Set(tags)];
   }
 
-  return { value: { title, content, category, tags: tags.join(',') } };
+  return { value: { title, content, category, tags: tags.join(','), link } };
 }
 
 /**
@@ -536,13 +551,13 @@ app.post('/api/articles/:id/comments', (req, res) => {
 
 /* ================= 后台文章 API（管理员 + CSRF） ================= */
 // 文章管理列表（含检索：标题关键字 / 类别 / 标签）（REQ-19）
-app.get('/api/admin/articles', (req, res) => {
+app.get('/api/admin/articles', requireAdmin, (req, res) => {
   const keyword = typeof req.query.keyword === 'string' ? req.query.keyword.trim() : '';
   const category = typeof req.query.category === 'string' ? req.query.category.trim() : '';
   const tag = typeof req.query.tag === 'string' ? req.query.tag.trim() : '';
   try {
-    // 后台列表只显示可管理的普通文章（link 非空的固定页面不可在后台管理）
-    let sql = "SELECT id, title, category, tags, link, created_at FROM articles WHERE link = ''";
+    // 后台列表显示全部文章（含带跳转链接的文章，可正常编辑/删除）
+    let sql = "SELECT id, title, category, tags, link, created_at FROM articles WHERE 1=1";
     const params = [];
     if (keyword) {
       sql += ' AND title LIKE ?';
@@ -558,7 +573,7 @@ app.get('/api/admin/articles', (req, res) => {
     }
     sql += ' ORDER BY created_at DESC, id DESC';
     const rows = db.prepare(sql).all(...params);
-    res.json({ articles: rows });
+    res.json({ articles: rows.map((a) => ({ ...a, link: sanitizeLink(a.link) })) });
   } catch (e) {
     console.error('[admin.articles.list]', e);
     res.status(500).json({ message: '系统繁忙，请稍后重试' });
@@ -570,7 +585,7 @@ app.post('/api/admin/articles', requireAdminWrite, (req, res) => {
   try {
     const result = validateArticle(req.body);
     if (result.error) return res.status(400).json({ message: result.error });
-    const { title, content, category, tags } = result.value;
+    const { title, content, category, tags, link } = result.value;
 
     // 防重复提交（REQ-18 / BC-19）：同一会话 5 秒内相同内容拒绝
     const sid = req.session.id;
@@ -603,8 +618,8 @@ app.post('/api/admin/articles', requireAdminWrite, (req, res) => {
       .get();
     const newId = nextRow ? nextRow.id : 1;
 
-    db.prepare('INSERT INTO articles (id, title, content, category, tags) VALUES (?, ?, ?, ?, ?)')
-      .run(newId, title, content, category, tags);
+    db.prepare('INSERT INTO articles (id, title, content, category, tags, link) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(newId, title, content, category, tags, link);
     res.json({ success: true, id: newId, message: '发布成功' });
   } catch (e) {
     console.error('[admin.articles.create]', e);
@@ -621,15 +636,15 @@ app.put('/api/admin/articles/:id', requireAdminWrite, (req, res) => {
   try {
     const result = validateArticle(req.body);
     if (result.error) return res.status(400).json({ message: result.error });
-    const { title, content, category, tags } = result.value;
+    const { title, content, category, tags, link } = result.value;
 
     // 验证文章存在
     const row = db.prepare('SELECT id FROM articles WHERE id = ?').get(id);
     if (!row) return res.status(404).json({ message: '文章不存在或已被删除' });
 
     db.prepare(
-      'UPDATE articles SET title = ?, content = ?, category = ?, tags = ? WHERE id = ?'
-    ).run(title, content, category, tags, id);
+      'UPDATE articles SET title = ?, content = ?, category = ?, tags = ?, link = ? WHERE id = ?'
+    ).run(title, content, category, tags, link, id);
     res.json({ success: true, message: '更新成功' });
   } catch (e) {
     console.error('[admin.articles.update]', e);

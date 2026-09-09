@@ -16,6 +16,7 @@ export const MAX_TITLE_LEN = 100;
 export const MAX_CONTENT_LEN = 50000;
 export const MAX_TAG_COUNT = 5;
 export const MAX_TAG_LEN = 20;
+export const MAX_LINK_LEN = 500; // 卡片跳转链接（link 字段）长度上限
 export const TAG_PATTERN = /^[\u4e00-\u9fa5A-Za-z0-9_-]+$/;
 // 评论（REQ-25 ~ 33 / BC-27 ~ 36）
 export const MAX_NICKNAME_LEN = 20;
@@ -232,10 +233,16 @@ export function validateArticle(body) {
   const rawContent = typeof body.content === 'string' ? body.content : '';
   const category = typeof body.category === 'string' ? body.category.trim() : '';
   const rawTags = typeof body.tags === 'string' ? body.tags : '';
+  const rawLink = typeof body.link === 'string' ? body.link.trim() : '';
 
   if (!title) return { error: '标题不能为空' };
   if (title.length > MAX_TITLE_LEN) return { error: `标题不能超过 ${MAX_TITLE_LEN} 个字符` };
   if (!ALLOWED_CATEGORIES.includes(category)) return { error: '请选择有效类别' };
+
+  // 卡片跳转链接（选填）：空串合法；非空必须通过协议白名单（防 javascript:/data: 等 XSS 载荷）
+  if (rawLink.length > MAX_LINK_LEN) return { error: `跳转链接不能超过 ${MAX_LINK_LEN} 个字符` };
+  const link = sanitizeLink(rawLink);
+  if (rawLink && !link) return { error: '跳转链接格式无效（仅允许站内相对路径或 http/https/mailto 链接）' };
 
   const content = sanitizeHtml(rawContent);
   const textOnly = content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
@@ -252,7 +259,7 @@ export function validateArticle(body) {
     }
     tags = [...new Set(tags)];
   }
-  return { value: { title, content, category, tags: tags.join(',') } };
+  return { value: { title, content, category, tags: tags.join(','), link } };
 }
 
 /* ================= 评论字段校验（与 Express 版规则一致，REQ-25 ~ 33） ================= */

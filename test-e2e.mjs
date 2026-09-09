@@ -114,6 +114,23 @@ async function run() {
   r = await api('/api/admin/articles', { method: 'POST', body: { title: 'x', category: '博客', content: '<p>x</p>', tags: '非法!!标签' }, csrf });
   check('标签含非法字符 → 400', r.status === 400, `got ${r.status}`);
 
+  // 卡片跳转链接（link 字段）
+  r = await api('/api/admin/articles', { method: 'POST', body: { title: 'E2E链接测试', category: '博客', content: '<p>带链接</p>', link: 'https://example.com/a' }, csrf });
+  check('合法 link → 200 发布成功', r.status === 200 && r.data.success, `got ${r.status} ${r.text}`);
+  if (r.status === 200) {
+    const linkId = r.data.id;
+    const dl = await api('/api/articles/' + linkId);
+    check('link 入库并在前台详情返回', dl.status === 200 && dl.data.article.link === 'https://example.com/a', JSON.stringify(dl.data.article && dl.data.article.link));
+    r = await api('/api/admin/articles/' + linkId, { method: 'PUT', body: { title: 'E2E链接测试', category: '博客', content: '<p>带链接</p>', link: 'introduce.html' }, csrf });
+    check('PUT 更新 link → 200', r.status === 200, `got ${r.status} ${r.text}`);
+    r = await api('/api/admin/articles/' + linkId, { method: 'DELETE', csrf });
+    check('清理链接测试文章', r.status === 200, `got ${r.status}`);
+  }
+  r = await api('/api/admin/articles', { method: 'POST', body: { title: 'x', category: '博客', content: '<p>x</p>', link: 'javascript:alert(1)' }, csrf });
+  check('恶意 link（javascript:）→ 400', r.status === 400 && /链接/.test(r.data.message), `got ${r.status} ${r.text}`);
+  r = await api('/api/admin/articles', { method: 'POST', body: { title: 'x', category: '博客', content: '<p>x</p>', link: '//evil.com/x' }, csrf });
+  check('协议相对 link（//evil.com）→ 400', r.status === 400, `got ${r.status}`);
+
   // XSS 过滤（AC-08 / BC-18）
   r = await api('/api/admin/articles', { method: 'POST', body: { title: 'XSS过滤测试', category: '博客', content: '<p>安全内容</p><script>alert(1)</script><img src="x" onerror="alert(2)"><iframe src="evil"></iframe>', tags: '安全' }, csrf });
   check('XSS 载荷提交成功（白名单过滤后入库）', r.status === 200, `got ${r.status} ${r.text}`);

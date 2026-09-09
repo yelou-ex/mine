@@ -176,6 +176,26 @@ check('标签超 5 个 → 400', r.status === 400, `got ${r.status}`);
 r = await call('/api/admin/articles', { method: 'POST', body: { title: 'x', category: '博客', content: '<p>x</p>', tags: 'bad!!' }, csrf });
 check('标签非法字符 → 400', r.status === 400, `got ${r.status}`);
 
+// 卡片跳转链接（link 字段）
+r = await call('/api/admin/articles', { method: 'POST', body: { title: '链接测试', category: '博客', content: '<p>带链接</p>', link: 'https://example.com/a' }, csrf });
+check('合法 link → 200 发布成功', r.status === 200 && r.data.success, `got ${r.status} ${r.text}`);
+if (r.status === 200) {
+  const linkId = r.data.id;
+  const dl = await call('/api/articles/' + linkId);
+  check('link 入库并在前台详情返回', dl.status === 200 && dl.data.article.link === 'https://example.com/a', JSON.stringify(dl.data.article));
+  r = await call('/api/admin/articles/' + linkId, { method: 'PUT', body: { title: '链接测试', category: '博客', content: '<p>带链接</p>', link: 'introduce.html' }, csrf });
+  check('PUT 更新 link → 200', r.status === 200, `got ${r.status} ${r.text}`);
+  const dl2 = await call('/api/articles/' + linkId);
+  check('更新后 link 生效', dl2.data.article.link === 'introduce.html', JSON.stringify(dl2.data.article && dl2.data.article.link));
+  await call('/api/admin/articles/' + linkId, { method: 'DELETE', csrf });
+}
+r = await call('/api/admin/articles', { method: 'POST', body: { title: 'x', category: '博客', content: '<p>x</p>', link: 'javascript:alert(1)' }, csrf });
+check('恶意 link（javascript:）→ 400', r.status === 400 && /链接/.test(r.data.message), `got ${r.status} ${r.text}`);
+r = await call('/api/admin/articles', { method: 'POST', body: { title: 'x', category: '博客', content: '<p>x</p>', link: '//evil.com/x' }, csrf });
+check('协议相对 link（//evil.com）→ 400', r.status === 400, `got ${r.status} ${r.text}`);
+r = await call('/api/admin/articles', { method: 'POST', body: { title: 'x', category: '博客', content: '<p>x</p>', link: 'data:text/html;base64,PHNjcmlwdD4=' }, csrf });
+check('data: link → 400', r.status === 400, `got ${r.status} ${r.text}`);
+
 // XSS
 r = await call('/api/admin/articles', { method: 'POST', body: { title: 'XSS测试', category: '博客', content: '<p>安全内容</p><script>alert(1)</script><img src=x onerror=alert(2)><iframe src=evil></iframe>', tags: '安全' }, csrf });
 check('XSS 载荷提交成功', r.status === 200, `got ${r.status} ${r.text}`);

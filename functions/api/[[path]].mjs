@@ -250,7 +250,7 @@ export async function onRequest(context) {
         const keyword = url.searchParams.get('keyword') || '';
         const category = url.searchParams.get('category') || '';
         const tag = url.searchParams.get('tag') || '';
-        let sql = "SELECT id, title, category, tags, link, created_at FROM articles WHERE link = ''";
+        let sql = "SELECT id, title, category, tags, link, created_at FROM articles WHERE 1=1";
         const args = [];
         if (keyword) { sql += ' AND title LIKE ?'; args.push(`%${keyword}%`); }
         if (category) { sql += ' AND category = ?'; args.push(category); }
@@ -268,7 +268,7 @@ export async function onRequest(context) {
         if (!body) return json({ message: '请求体格式错误' }, 400);
         const result = validateArticle(body);
         if (result.error) return json({ message: result.error }, 400);
-        const { title, content, category, tags } = result.value;
+        const { title, content, category, tags, link } = result.value;
 
         const fingerprint = await sha256Fingerprint(`${title}\u0000${content.slice(0, 300)}`);
         if (await isDuplicateSubmit(env, fingerprint)) {
@@ -286,8 +286,8 @@ export async function onRequest(context) {
         ).first();
         const newId = nextRow ? nextRow.id : 1;
         await env.DB.prepare(
-          'INSERT INTO articles (id, title, content, category, tags) VALUES (?, ?, ?, ?, ?)'
-        ).bind(newId, title, content, category, tags).run();
+          'INSERT INTO articles (id, title, content, category, tags, link) VALUES (?, ?, ?, ?, ?, ?)'
+        ).bind(newId, title, content, category, tags, link).run();
         return json({ success: true, id: newId, message: '发布成功' });
       }
       return json({ message: '接口不存在' }, 404);
@@ -308,10 +308,10 @@ export async function onRequest(context) {
       const row = await env.DB.prepare('SELECT id FROM articles WHERE id = ?').bind(id).first();
       if (!row) return json({ message: '文章不存在或已被删除' }, 404);
 
-      const { title, content, category, tags } = result.value;
+      const { title, content, category, tags, link } = result.value;
       await env.DB.prepare(
-        'UPDATE articles SET title = ?, content = ?, category = ?, tags = ? WHERE id = ?'
-      ).bind(title, content, category, tags, id).run();
+        'UPDATE articles SET title = ?, content = ?, category = ?, tags = ?, link = ? WHERE id = ?'
+      ).bind(title, content, category, tags, link, id).run();
       return json({ success: true, message: '更新成功' });
     }
 
