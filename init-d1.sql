@@ -48,13 +48,12 @@ INSERT OR IGNORE INTO admins (username, password_hash)
 VALUES ('admin', 'YWRtaW4xMjM=');  -- SHA-256 of 'admin123' in base64
 
 -- 插入种子文章
--- 说明：学习之路/一路所获页面已并入 introduce.html（原 myway.html、honor.html 已下线），
--- 三篇种子文章统一指向 introduce.html
+-- 说明：原三篇种子（个人基本信息/我的学习之路/一路所获）已合并为单一「关于我」入口；
+-- 学习之路/一路所获页面已并入 introduce.html（原 myway.html、honor.html 已下线）
 INSERT OR IGNORE INTO articles (id, title, category, tags, link, content, created_at) VALUES
-(1, '个人基本信息', '博客', '', 'introduce.html', '<p>欢迎来到我的个人博客！我叫杨楼，在这里我将分享我的生活、学习和工作中的点点滴滴。无论你是我的朋友、同学、老师，还是偶然路过的访客，都希望这里的内容能够给你带来帮助或启发。</p><p>我会在这里记录我的成长历程，分享有用的知识和经验。如果你对某些内容感兴趣，或者有任何问题或建议，欢迎随时联系我！</p>', '2023-10-15 00:00:00'),
-(2, '我的学习之路', '博客', '', 'introduce.html', '<p>这部分记录了我的部分成长经历。</p><p>在这里，我将分享我的成长曲线、兴趣分布图等。如果你有任何问题或建议，我很乐意与你交流！</p>', '2023-10-10 00:00:00'),
-(3, '一路所获', '博客', '', 'introduce.html', '<p>这里是一些我曾经获得的荣誉。</p>', '2023-10-05 00:00:00');
+(1, '关于我', '博客', '', 'introduce.html', '<p>欢迎来到我的个人博客！我叫杨楼，在这里我将分享我的生活、学习和工作中的点点滴滴。无论你是我的朋友、同学、老师，还是偶然路过的访客，都希望这里的内容能够给你带来帮助或启发。</p><p>我会在这里记录我的成长历程，分享有用的知识和经验。如果你对某些内容感兴趣，或者有任何问题或建议，欢迎随时联系我！</p><p>这部分记录了我的部分成长经历。在这里，我将分享我的成长曲线、兴趣分布图等。如果你有任何问题或建议，我很乐意与你交流！</p>', '2023-10-15 00:00:00');
 
--- 迁移：将旧库中指向已下线页面的链接重定向到并入后的 introduce.html
-UPDATE articles SET link = 'introduce.html' WHERE title = '我的学习之路' AND link = 'myway.html';
-UPDATE articles SET link = 'introduce.html' WHERE title = '一路所获' AND link = 'honor.html';
+-- 迁移：将旧库中三篇种子文章合并为单一「关于我」入口（链接重定向 + 就地更名 + 删除余下两篇，评论随外键级联清理）
+UPDATE articles SET link = 'introduce.html' WHERE title IN ('我的学习之路', '一路所获') AND link IN ('myway.html', 'honor.html');
+UPDATE articles SET title = '关于我' WHERE title = '个人基本信息' AND link IN ('', 'introduce.html');
+DELETE FROM articles WHERE title IN ('我的学习之路', '一路所获') AND link IN ('', 'introduce.html', 'myway.html', 'honor.html');

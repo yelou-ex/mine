@@ -21,37 +21,20 @@ const DB_PATH = path.join(DATA_DIR, 'website.db');
 // 默认管理员（仅当管理员表为空时创建；生产环境请立即修改密码）
 const DEFAULT_ADMIN = { username: 'admin', password: 'admin123' };
 
-// 种子文章（保持与网站原有静态内容一致；link 指向原有静态页面，点击"阅读更多"跳转到对应页面）
+// 种子文章（保持与网站原有静态内容一致；link 指向静态页面，点击"阅读更多"跳转；
+// 原「个人基本信息 / 我的学习之路 / 一路所获」三篇已合并为单一「关于我」入口）
 const DEFAULT_ARTICLES = [
   {
-    title: '个人基本信息',
+    title: '关于我',
     category: '博客',
     tags: '',
+    // 页面已并入 introduce.html（原 myway.html / honor.html 已下线）
     link: 'introduce.html',
     created_at: '2023-10-15 00:00:00',
     content:
       '<p>欢迎来到我的个人博客！我叫杨楼，在这里我将分享我的生活、学习和工作中的点点滴滴。无论你是我的朋友、同学、老师，还是偶然路过的访客，都希望这里的内容能够给你带来帮助或启发。</p>' +
-      '<p>我会在这里记录我的成长历程，分享有用的知识和经验。如果你对某些内容感兴趣，或者有任何问题或建议，欢迎随时联系我！</p>',
-  },
-  {
-    title: '我的学习之路',
-    category: '博客',
-    tags: '',
-    // 页面已并入 introduce.html（原 myway.html 已下线）
-    link: 'introduce.html',
-    created_at: '2023-10-10 00:00:00',
-    content:
-      '<p>这部分记录了我的部分成长经历。</p>' +
-      '<p>在这里，我将分享我的成长曲线、兴趣分布图等。如果你有任何问题或建议，我很乐意与你交流！</p>',
-  },
-  {
-    title: '一路所获',
-    category: '博客',
-    tags: '',
-    // 页面已并入 introduce.html（原 honor.html 已下线）
-    link: 'introduce.html',
-    created_at: '2023-10-05 00:00:00',
-    content: '<p>这里是一些我曾经获得的荣誉。</p>',
+      '<p>我会在这里记录我的成长历程，分享有用的知识和经验。如果你对某些内容感兴趣，或者有任何问题或建议，欢迎随时联系我！</p>' +
+      '<p>这部分记录了我的部分成长经历。在这里，我将分享我的成长曲线、兴趣分布图等。如果你有任何问题或建议，我很乐意与你交流！</p>',
   },
 ];
 
@@ -104,8 +87,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_comments_article ON comments (article_id);
 `);
 
-// 迁移：为已有数据库补 link 列，并为 3 篇种子文章设置指向静态页面的链接；
-// 学习之路/一路所获页面已并入 introduce.html，旧值 myway.html/honor.html 一并重定向
+// 迁移：为已有数据库补 link 列，并统一 3 篇种子文章的 link 指向 introduce.html；
+// 学习之路/一路所获页面已并入 introduce.html，旧值 myway.html/honor.html 一并重定向；
+// 再将 3 篇种子文章合并为单一「关于我」入口（首页 index 只保留「关于我」）
 function migrate() {
   const cols = db.prepare('PRAGMA table_info(articles)').all();
   if (!cols.some((c) => c.name === 'link')) {
@@ -159,6 +143,17 @@ if (schemaVersion < 1) {
   ensureDefaultAdmin();
   ensureSeedArticles();
   db.pragma('user_version = 1');
+}
+
+// 一次性合并（user_version 1 → 2）：三篇种子文章合并为单一「关于我」入口（首页 index 只保留「关于我」）
+// 「个人基本信息」就地更名（保留 id/内容/评论），另两篇删除（评论经外键级联清理）；
+// 限定 link 为种子特征取值，避免误删同名新文章
+const mergeVersion = db.pragma('user_version', { simple: true });
+if (mergeVersion < 2) {
+  const renamed = db.prepare("UPDATE articles SET title = '关于我' WHERE title = '个人基本信息' AND link IN ('', 'introduce.html')").run();
+  db.prepare("DELETE FROM articles WHERE title IN ('我的学习之路', '一路所获') AND link IN ('', 'introduce.html', 'myway.html', 'honor.html')").run();
+  if (renamed.changes > 0) console.log('[db] 已迁移：三篇种子文章合并为「关于我」单一入口');
+  db.pragma('user_version = 2');
 }
 
 module.exports = db;

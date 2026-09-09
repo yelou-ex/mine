@@ -1,14 +1,14 @@
 /**
  * functions/sitemap.xml.js — 动态 sitemap（对搜索引擎友好）
  * 显式托管 /sitemap.xml（不再落入 catch-all 返回首页），内容 =
- *   固定静态页（首页 / 关于 / 学习之路 / 荣誉）+ 后台发布的全部文章（/article?id=N）。
+ *   固定静态页（首页 / 关于我）+ 后台发布的全部文章（/article?id=N）。
  * 数据库异常时降级只输出静态页，不阻断响应。
  */
 import { ensureSchema } from './_lib.mjs';
 
 const BASE = 'https://yelou.pages.dev';
 
-// 固定静态页（学习之路/一路所获已并入 introduce.html，原 myway.html、honor.html 已下线）
+// 固定静态页（学习之路已并入 introduce.html，一路所获已移除；原 myway.html、honor.html 已下线）
 const STATIC_PAGES = [
   { loc: `${BASE}/`, lastmod: '2025-01-01' },
   { loc: `${BASE}/introduce.html`, lastmod: '2023-10-15' },

@@ -287,34 +287,16 @@ export function validateComment(body) {
 /* ================= D1 Schema 初始化（幂等） ================= */
 const SEED_ARTICLES = [
   {
-    title: '个人基本信息',
+    title: '关于我',
     category: '博客',
     tags: '',
+    // 三篇种子已合并为单一「关于我」入口（原 myway.html / honor.html 已并入 introduce.html）
     link: 'introduce.html',
     created_at: '2023-10-15 00:00:00',
     content:
       '<p>欢迎来到我的个人博客！我叫杨楼，在这里我将分享我的生活、学习和工作中的点点滴滴。无论你是我的朋友、同学、老师，还是偶然路过的访客，都希望这里的内容能够给你带来帮助或启发。</p>' +
-      '<p>我会在这里记录我的成长历程，分享有用的知识和经验。如果你对某些内容感兴趣，或者有任何问题或建议，欢迎随时联系我！</p>',
-  },
-  {
-    title: '我的学习之路',
-    category: '博客',
-    tags: '',
-    // 页面已并入 introduce.html（原 myway.html）
-    link: 'introduce.html',
-    created_at: '2023-10-10 00:00:00',
-    content:
-      '<p>这部分记录了我的部分成长经历。</p>' +
-      '<p>在这里，我将分享我的成长曲线、兴趣分布图等。如果你有任何问题或建议，我很乐意与你交流！</p>',
-  },
-  {
-    title: '一路所获',
-    category: '博客',
-    tags: '',
-    // 页面已并入 introduce.html（原 honor.html）
-    link: 'introduce.html',
-    created_at: '2023-10-05 00:00:00',
-    content: '<p>这里是一些我曾经获得的荣誉。</p>',
+      '<p>我会在这里记录我的成长历程，分享有用的知识和经验。如果你对某些内容感兴趣，或者有任何问题或建议，欢迎随时联系我！</p>' +
+      '<p>这部分记录了我的部分成长经历。在这里，我将分享我的成长曲线、兴趣分布图等。如果你有任何问题或建议，我很乐意与你交流！</p>',
   },
 ];
 
@@ -386,6 +368,16 @@ export async function ensureSchema(env) {
     env.DB.prepare("UPDATE articles SET link = 'introduce.html' WHERE title = '我的学习之路' AND link IN ('', 'myway.html')"),
     env.DB.prepare("UPDATE articles SET link = 'introduce.html' WHERE title = '一路所获' AND link IN ('', 'honor.html')"),
   ]);
+  // 三篇种子文章合并为单一「关于我」入口（一次性，app_meta 标记保证幂等）：
+  // 「个人基本信息」就地更名，另两篇删除（评论经外键级联清理）；限定 link 为种子特征取值
+  const mergedFlag = await env.DB.prepare("SELECT value FROM app_meta WHERE key = 'merged_aboutme'").first();
+  if (!mergedFlag) {
+    await env.DB.batch([
+      env.DB.prepare("UPDATE articles SET title = '关于我' WHERE title = '个人基本信息' AND link IN ('', 'introduce.html')"),
+      env.DB.prepare("DELETE FROM articles WHERE title IN ('我的学习之路', '一路所获') AND link IN ('', 'introduce.html', 'myway.html', 'honor.html')"),
+    ]);
+    await env.DB.prepare("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('merged_aboutme', '1')").run();
+  }
   // 默认管理员（幂等）
   const admin = await env.DB.prepare('SELECT id FROM admins WHERE username = ?').bind(DEFAULT_ADMIN.username).first();
   if (!admin) {

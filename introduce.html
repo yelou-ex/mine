@@ -151,63 +151,6 @@
             border: 0;
         }
 
-        /* 成果轮播（并入自 一路所获） */
-        .carousel {
-            position: relative;
-            max-width: 800px;
-            margin: 0 auto;
-            overflow: hidden;
-            border-radius: 6px;
-        }
-
-        .carousel-item {
-            display: none;
-            width: 100%;
-        }
-
-        .carousel-item.active {
-            display: block;
-        }
-
-        .carousel-item img {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-
-        .carousel-caption {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background-color: rgba(0, 0, 0, 0.5);
-            color: #fff;
-            padding: 10px;
-            text-align: center;
-        }
-
-        .carousel-caption h3 {
-            margin: 0;
-            color: #fff;
-            font-size: 1rem;
-        }
-
-        .carousel-control {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            background-color: rgba(0, 0, 0, 0.5);
-            color: #fff;
-            border: none;
-            padding: 12px 14px;
-            cursor: pointer;
-            font-size: 18px;
-            border-radius: 4px;
-        }
-
-        .carousel-control.prev { left: 10px; }
-        .carousel-control.next { right: 10px; }
-
         nav ul {
             display: flex;
             list-style: none;
@@ -348,54 +291,11 @@
             </div>
             <p>喜欢唱跳rap篮球＿|￣|○</p>
         </section>
-
-        <!-- 一路所获（原 honor.html 并入） -->
-        <section class="profile-section">
-            <h2>一路所获</h2>
-            <div class="carousel" id="honorCarousel">
-                <div class="carousel-item active">
-                    <img src="picture/数学.jpg" alt="高中数学竞赛省三等奖">
-                    <div class="carousel-caption">
-                        <h3>高中数学竞赛省三等奖</h3>
-                    </div>
-                </div>
-                <div class="carousel-item">
-                    <img src="picture/noi.png" alt="noip竞赛贵州二等奖">
-                    <div class="carousel-caption">
-                        <h3>noip竞赛贵州二等奖</h3>
-                    </div>
-                </div>
-                <div class="carousel-item">
-                    <img src="picture/建模.jpg" alt="中学生数学建模遵义市三等奖">
-                    <div class="carousel-caption">
-                        <h3>中学生数学建模遵义市三等奖</h3>
-                    </div>
-                </div>
-                <button class="carousel-control prev" id="honorPrev" aria-label="上一张">&#10094;</button>
-                <button class="carousel-control next" id="honorNext" aria-label="下一张">&#10095;</button>
-            </div>
-        </section>
     </div>
     
     <footer class="footer">
         <p>© [2025] [杨楼]. 保留所有权利。</p>
     </footer>
 
-    <script>
-        // 成果轮播（自一路所获并入）：手动切换 + 每 5 秒自动轮播
-        (function () {
-            var slides = document.querySelectorAll('#honorCarousel .carousel-item');
-            if (!slides.length) return;
-            var current = 0;
-            function show(index) {
-                slides.forEach(function (s, i) { s.classList.toggle('active', i === index); });
-            }
-            function next() { current = (current + 1) % slides.length; show(current); }
-            function prev() { current = (current - 1 + slides.length) % slides.length; show(current); }
-            document.getElementById('honorPrev').addEventListener('click', prev);
-            document.getElementById('honorNext').addEventListener('click', next);
-            setInterval(next, 5000);
-        })();
-    </script>
 </body>
 </html>

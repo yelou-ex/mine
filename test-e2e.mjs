@@ -36,7 +36,7 @@ async function run() {
   /* ---------- 前台公开接口 ---------- */
   console.log('\n[1] 前台公开接口');
   let r = await api('/api/articles');
-  check('文章列表 200 且含种子文章', r.status === 200 && r.data.articles.length >= 3, `got ${r.status}`);
+  check('文章列表 200 且含种子「关于我」（原三篇种子已合并）', r.status === 200 && r.data.articles.some((a) => a.title === '关于我' && a.link === 'introduce.html'), `got ${r.status}`);
 
   r = await api('/api/articles/1');
   check('文章详情 200', r.status === 200 && !!r.data.article, `got ${r.status}`);

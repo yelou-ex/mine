@@ -104,9 +104,9 @@ function check(name, cond, extra = '') {
   else { failed++; console.log(`  ✗ ${name} ${extra}`); }
 }
 
-console.log('\n[0] 页面合并迁移（学习之路/一路所获 并入 introduce.html）');
-// 模拟存量库：种子文章仍指向已下线的 myway.html / honor.html（建表 + 预置旧链接 + seeded 标记，
-// 使首次 ensureSchema 时跳过种子插入、直接执行链接重定向迁移）
+console.log('\n[0] 种子合并迁移（三篇种子 → 单一「关于我」入口）');
+// 模拟存量库：三篇种子仍为旧标题/旧链接（建表 + 预置 + seeded 标记，
+// 使首次 ensureSchema 时跳过种子插入、直接执行链接重定向 + 合并迁移）
 db.exec(`
   CREATE TABLE IF NOT EXISTS articles (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, content TEXT NOT NULL, category TEXT NOT NULL, tags TEXT NOT NULL DEFAULT '', link TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')));
   CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -116,12 +116,16 @@ db.prepare("INSERT INTO articles (id, title, content, category, tags, link, crea
 db.prepare("INSERT INTO articles (id, title, content, category, tags, link, created_at) VALUES (3, '一路所获', '<p>c</p>', '博客', '', 'honor.html', '2023-10-05 00:00:00')").run();
 db.prepare("INSERT INTO app_meta (key, value) VALUES ('seeded', '1')").run();
 let migArticles = (await call('/api/articles')).data.articles;
-check('迁移：我的学习之路 myway.html → introduce.html', migArticles.some((a) => a.id === 2 && a.link === 'introduce.html'), JSON.stringify(migArticles));
-check('迁移：一路所获 honor.html → introduce.html', migArticles.some((a) => a.id === 3 && a.link === 'introduce.html'), JSON.stringify(migArticles));
+check('迁移：个人基本信息 更名为「关于我」（保留 id/link）', migArticles.some((a) => a.id === 1 && a.title === '关于我' && a.link === 'introduce.html'), JSON.stringify(migArticles));
+check('迁移：我的学习之路/一路所获 已删除', !migArticles.some((a) => a.title === '我的学习之路' || a.title === '一路所获'), JSON.stringify(migArticles));
+check('迁移后仅剩 1 篇种子「关于我」', migArticles.length === 1, JSON.stringify(migArticles));
+// 合并后为后续用例补回 id=2/3 的占位文章（级联删除、link 清洗等测试按 id 引用）
+db.prepare("INSERT INTO articles (id, title, content, category, tags, link, created_at) VALUES (2, '级联测试', '<p>x</p>', '博客', '', '', datetime('now','localtime'))").run();
+db.prepare("INSERT INTO articles (id, title, content, category, tags, link, created_at) VALUES (3, '链接测试', '<p>y</p>', '博客', '', '', datetime('now','localtime'))").run();
 
 console.log('\n[1] 初始化与前台');
 let r = await call('/api/articles');
-check('文章列表 200 且含 3 篇种子', r.status === 200 && r.data.articles.length === 3, `got ${r.status} n=${r.data.articles && r.data.articles.length}`);
+check('文章列表 200 且含种子「关于我」', r.status === 200 && r.data.articles.some((a) => a.title === '关于我' && a.link === 'introduce.html'), `got ${r.status} n=${r.data.articles && r.data.articles.length}`);
 r = await call('/api/articles/1');
 check('文章详情 200', r.status === 200 && !!r.data.article, `got ${r.status}`);
 r = await call('/api/articles?category=博客');
@@ -283,7 +287,7 @@ check('REQ-32 后台评论列表', r.status === 200 && Array.isArray(r.data.comm
 const firstCm = r.data.comments[0];
 r = await call('/api/admin/comments?articleId=1');
 check('REQ-32 按文章 ID 检索', r.status === 200 && r.data.comments.every((c) => c.article_id === 1), `got ${r.status}`);
-check('检索结果含文章标题', r.status === 200 && r.data.comments.every((c) => c.article_title === '个人基本信息'), `first=${JSON.stringify(r.data.comments[0] && r.data.comments[0].article_title)}`);
+check('检索结果含文章标题', r.status === 200 && r.data.comments.every((c) => c.article_title === '关于我'), `first=${JSON.stringify(r.data.comments[0] && r.data.comments[0].article_title)}`);
 // REQ-33 / BC-35 删除评论
 r = await call('/api/admin/comments/' + firstCm.id, { method: 'DELETE', csrf: cmsf });
 check('REQ-33 删除评论成功', r.status === 200 && r.data.success, `got ${r.status} ${r.text}`);
