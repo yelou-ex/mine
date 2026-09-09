@@ -39,7 +39,7 @@ const TAG_PATTERN = /^[\u4e00-\u9fa5A-Za-z0-9_-]+$/; // 中文/英文/数字/下
 const MAX_NICKNAME_LEN = 20;
 const MAX_EMAIL_LEN = 50;
 const MAX_COMMENT_LEN = 1000;
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_PATTERN = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 const COMMENT_DUP_WINDOW_MS = 60 * 1000;  // 同 IP + 同文章 + 同内容 60 秒内防重复
 const COMMENT_HOUR_LIMIT = 10;            // 同 IP 每小时最多 10 条
 
@@ -226,22 +226,27 @@ function sanitizeLink(input) {
 }
 
 /* ================= 评论（REQ-25 ~ 33 / BC-27 ~ 36） ================= */
-// 评论内容统一按纯文本处理：先整体剔除危险元素（含其内容），再去除剩余 HTML 标签
+// 评论内容统一按纯文本处理：先整体剔除危险元素（含其内容），再去除剩余 HTML 标签，
+// 最后剥离残留的未配对 < >（如未闭合标签片段 <img src=x onerror=... 无 ">"，不会被上面两条命中）
 function sanitizeComment(raw) {
   let s = String(raw == null ? '' : raw);
   s = s.replace(/<(script|style|iframe|object|embed|form|textarea|select|link|meta)\b[\s\S]*?<\/\1\s*>/gi, '');
   s = s.replace(/<[^>]*>/g, '');
+  s = s.replace(/[<>]/g, '');
   return s;
 }
 
 // 评论字段校验（前端 + 后端双重校验；规则见 5.5.2 字段规格）
 function validateComment(body) {
-  const nickname = typeof body.nickname === 'string' ? body.nickname.trim() : '';
+  const rawNickname = typeof body.nickname === 'string' ? body.nickname.trim() : '';
   const email = typeof body.email === 'string' ? body.email.trim() : '';
   const rawContent = typeof body.content === 'string' ? body.content : '';
 
+  if (!rawNickname) return { error: '昵称不能为空' };
+  if (rawNickname.length > MAX_NICKNAME_LEN) return { error: `昵称不能超过 ${MAX_NICKNAME_LEN} 个字符` };
+  // 昵称同按纯文本处理（防未来渲染点未转义时 <i onclick=...> 等载荷入库）
+  const nickname = sanitizeComment(rawNickname);
   if (!nickname) return { error: '昵称不能为空' };
-  if (nickname.length > MAX_NICKNAME_LEN) return { error: `昵称不能超过 ${MAX_NICKNAME_LEN} 个字符` };
 
   if (rawContent.length > MAX_COMMENT_LEN) return { error: `评论内容不能超过 ${MAX_COMMENT_LEN} 个字符` };
 

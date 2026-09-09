@@ -267,6 +267,18 @@ check('BC-31 XSS 载荷提交成功', r.status === 200, `got ${r.status}`);
   const xssRow = d.data.comments.find((c) => c.nickname === 'hacker');
   check('BC-31 入库后为纯文本', !!xssRow && !xssRow.content.includes('<') && xssRow.content.includes('哈哈'), `content=${xssRow && JSON.stringify(xssRow.content)}`);
 }
+// BC-31 加固：未配对 <> 残留 / 恶意邮箱 / 昵称 XSS
+r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: 'frag', content: '<img src=x onerror=alert(1)' } });
+check('未闭合标签片段 → 200 按纯文本入库', r.status === 200, `got ${r.status} ${r.text}`);
+{
+  const d = await call('/api/articles/1/comments');
+  const fragRow = d.data.comments.find((c) => c.nickname === 'frag');
+  check('入库内容无 < > 残留', !!fragRow && !/[<>]/.test(fragRow.content), `content=${fragRow && JSON.stringify(fragRow.content)}`);
+}
+r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: 'em', content: 'x', email: '<img src=x onerror=alert(1)>@evil.com' } });
+check('恶意邮箱（<> 载荷）→ 400', r.status === 400 && /邮箱/.test(r.data.message || ''), `got ${r.status} ${r.text}`);
+r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: '<i onclick=alert(1)>', content: 'x' } });
+check('昵称 XSS 被剥离致空 → 400', r.status === 400, `got ${r.status} ${r.text}`);
 // BC-30 邮箱非法
 r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: 'a', email: 'not-email', content: 'hi' } });
 check('BC-30 邮箱非法 → 400', r.status === 400 && /邮箱/.test(r.data.message || ''), `got ${r.status} ${r.text}`);

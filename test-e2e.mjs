@@ -147,6 +147,22 @@ async function run() {
   r = await api('/api/admin/articles', { method: 'POST', body: { title: 'x', category: '博客', content: '<p>x</p>' } });
   check('缺 CSRF Token → 403', r.status === 403, `got ${r.status}`);
 
+  /* ---------- 评论 XSS 加固回归 ---------- */
+  console.log('\n[5.5] 评论加固（未配对 <> / 恶意邮箱）');
+  r = await api('/api/articles/1/comments', { method: 'POST', body: { nickname: 'frag-test', content: '<img src=x onerror=alert(1)' } });
+  check('未闭合标签片段 → 200 按纯文本入库', r.status === 200, `got ${r.status} ${r.text}`);
+  {
+    const d = await api('/api/articles/1/comments');
+    const fragRow = d.data.comments && d.data.comments.find((c) => c.nickname === 'frag-test');
+    check('入库内容无 < > 残留', !!fragRow && !/[<>]/.test(fragRow.content), `content=${fragRow && JSON.stringify(fragRow.content)}`);
+    if (fragRow) {
+      const dc = await api('/api/admin/comments/' + fragRow.id, { method: 'DELETE', csrf });
+      check('清理测试评论', dc.status === 200, `got ${dc.status} ${dc.text}`);
+    }
+  }
+  r = await api('/api/articles/1/comments', { method: 'POST', body: { nickname: 'em', content: 'x', email: '<img src=x onerror=alert(1)>@evil.com' } });
+  check('恶意邮箱（<> 载荷）→ 400', r.status === 400, `got ${r.status} ${r.text}`);
+
   /* ---------- 文章列表与删除（AC-11/12/13/14） ---------- */
   console.log('\n[6] 文章列表与删除');
   r = await api('/api/admin/articles?keyword=E2E');
