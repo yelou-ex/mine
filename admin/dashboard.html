@@ -514,7 +514,7 @@
                         return '<tr>' +
                             '<td><input type="checkbox" class="row-check" value="' + a.id + '"></td>' +
                             '<td class="hide-mobile">' + a.id + '</td>' +
-                            '<td><a href="/article.html?id=' + a.id + '" target="_blank" style="color:#2c3e50;text-decoration:none;">' + esc(a.title) + '</a></td>' +
+                            '<td><a href="/article?id=' + a.id + '" target="_blank" style="color:#2c3e50;text-decoration:none;">' + esc(a.title) + '</a></td>' +
                             '<td>' + esc(a.category) + '</td>' +
                             '<td class="hide-mobile">' + tags + '</td>' +
                             '<td style="color:#7f8c8d;">' + esc(a.created_at) + '</td>' +
@@ -598,7 +598,7 @@
                 } else {
                     body.innerHTML = items.map(function (c) {
                         var link = c.article_title
-                            ? '<a href="/article.html?id=' + c.article_id + '" target="_blank" style="color:#2c3e50;text-decoration:none;">' + esc(c.article_title) + '</a>'
+                            ? '<a href="/article?id=' + c.article_id + '" target="_blank" style="color:#2c3e50;text-decoration:none;">' + esc(c.article_title) + '</a>'
                             : '<span style="color:#bdc3c7">（文章已删除）</span>';
                         var display = '【' + c.nickname + '】' + (c.content.length > 40 ? c.content.slice(0, 40) + '…' : c.content);
                         return '<tr>' +

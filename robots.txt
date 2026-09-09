@@ -1,0 +1,14 @@
+# 杨楼的个人博客（yelou.pages.dev）爬虫规则
+User-agent: *
+Allow: /
+
+# 后台与 API（会话敏感路径，禁止索引）
+Disallow: /admin/
+Disallow: /api/
+
+# 开发/测试文件与内部资料
+Disallow: /test-mobile-api.html
+Disallow: /漏洞/
+Disallow: /111
+
+Sitemap: https://yelou.pages.dev/sitemap.xml

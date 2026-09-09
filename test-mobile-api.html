@@ -81,11 +81,8 @@
 
         function showResult(elementId, data, isError) {
             var el = document.getElementById(elementId);
-            if (isError) {
-                el.innerHTML = '<span class="error">❌ 错误:</span>\n' + JSON.stringify(data, null, 2);
-            } else {
-                el.innerHTML = '<span class="success">✅ 成功:</span>\n' + JSON.stringify(data, null, 2);
-            }
+            // 用 textContent 而非 innerHTML 输出 API 数据，防止响应内容注入 DOM
+            el.textContent = (isError ? '❌ 错误:\n' : '✅ 成功:\n') + JSON.stringify(data, null, 2);
         }
 
         function checkAuth() {

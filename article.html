@@ -137,6 +137,8 @@
         </div>
     </footer>
 
+    <!-- DOMPurify：文章富文本的前端 XSS 二次过滤库；CDN 不可用时内联脚本自动回退到强化版本地白名单渲染器 -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
     <script>
         // 文章详情：从后端 API 加载；渲染前做前端白名单二次过滤（防 XSS 第二道防线）
         (function () {
@@ -145,34 +147,95 @@
                     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
                     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
             }
-            // 前端白名单渲染：移除脚本/iframe 等危险元素与事件属性
-            function safeRender(html) {
+            // 白名单与后端（functions/_lib.mjs）保持一致：标签/属性
+            var ALLOWED_TAGS = ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'del', 's',
+                'ul', 'ol', 'li', 'a', 'img', 'span', 'div', 'hr',
+                'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'code', 'pre'];
+            var ALLOWED_ATTRS = { a: ['href', 'title', 'target', 'rel'], img: ['src', 'alt', 'title'] };
+            var SAFE_SCHEMES = { http: 1, https: 1, mailto: 1 };
+
+            // URI 安全检查：仅允许 http/https/mailto、相对路径与锚点；
+            // 拒绝 javascript:/data:/vbscript: 及 // 协议相对地址（含空白控制字符绕过）
+            function isSafeUri(v) {
+                var s = String(v == null ? '' : v);
+                var stripped = s.replace(/[\u0000-\u0020]/g, '').toLowerCase();
+                if (!stripped) return true; // 空值
+                var m = stripped.match(/^([a-z][a-z0-9+.-]*):/);
+                if (m) return !!SAFE_SCHEMES[m[1]]; // 有协议：仅白名单协议
+                if (s.slice(0, 2) === '//') return false; // 拒绝 //evil.com
+                return true; // 相对路径 / 锚点
+            }
+
+            // 强化版本地渲染器（DOMPurify 不可用时的回退）：
+            // 标签白名单 + 属性白名单 + URI 协议白名单，覆盖 data:/xlink:svg/MathML 等已知绕过面
+            function safeRenderLocal(html) {
                 var tpl = document.createElement('template');
-                tpl.innerHTML = html;
-                tpl.content.querySelectorAll('script, iframe, object, embed, link, meta, style, form, input, button').forEach(function (n) { n.remove(); });
+                tpl.innerHTML = String(html == null ? '' : html);
+                // 整体移除危险/命名空间元素（含 svg/math/base/noscript 等绕过载体）
+                tpl.content.querySelectorAll(
+                    'script, style, iframe, object, embed, applet, base, link, meta, ' +
+                    'form, input, button, textarea, select, option, svg, math, ' +
+                    'noscript, template, picture, source, video, audio, details, summary, marquee'
+                ).forEach(function (n) { n.remove(); });
+                // 属性白名单：非白名单属性（on*、style、xlink:* 等）一律移除
                 tpl.content.querySelectorAll('*').forEach(function (el) {
+                    var allowed = ALLOWED_ATTRS[el.tagName.toLowerCase()] || [];
                     Array.prototype.slice.call(el.attributes).forEach(function (attr) {
                         var name = attr.name.toLowerCase();
-                        var val = attr.value.toLowerCase();
-                        if (name.indexOf('on') === 0) el.removeAttribute(attr.name);
-                        else if ((name === 'href' || name === 'src') && val.indexOf('javascript:') === 0) el.removeAttribute(attr.name);
+                        var keep = allowed.indexOf(name) !== -1;
+                        if (keep && (name === 'href' || name === 'src') && !isSafeUri(attr.value)) keep = false;
+                        if (!keep) el.removeAttribute(attr.name);
                     });
                 });
                 return tpl.innerHTML;
+            }
+
+            // 前端二次过滤：优先使用 DOMPurify（已知绕过面全覆盖），CDN 不可用时回退到强化版本地白名单渲染器
+            function safeRender(html) {
+                if (window.DOMPurify) {
+                    return window.DOMPurify.sanitize(String(html == null ? '' : html), {
+                        ALLOWED_TAGS: ALLOWED_TAGS,
+                        ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'src', 'alt'],
+                    });
+                }
+                return safeRenderLocal(html);
+            }
+
+            // DOMPurify 钩子：在默认规则之外强制 URI 协议白名单（作用于实体解码后的属性值，
+            // 可覆盖 data:/vbscript:/javascript: 及实体混淆绕过）；并为外链补 rel="noopener"
+            if (window.DOMPurify) {
+                window.DOMPurify.addHook('beforeSanitizeAttributes', function (node) {
+                    if (!node.attributes) return; // 文本/注释节点无属性
+                    for (var i = node.attributes.length - 1; i >= 0; i--) {
+                        var name = node.attributes[i].name.toLowerCase();
+                        if ((name === 'href' || name === 'src' || name === 'xlink:href')
+                            && !isSafeUri(node.attributes[i].value)) {
+                            node.removeAttribute(node.attributes[i].name);
+                        }
+                    }
+                });
+                window.DOMPurify.addHook('afterSanitizeAttributes', function (node) {
+                    if (node.hasAttribute && node.hasAttribute('target')) {
+                        var rel = node.getAttribute('rel') || '';
+                        if (rel.indexOf('noopener') === -1) {
+                            node.setAttribute('rel', (rel + ' noopener').trim());
+                        }
+                    }
+                });
             }
             function fmtDate(s) {
                 return String(s || '').replace('T', ' ').slice(0, 16);
             }
             var id = (location.search.match(/[?&]id=(\d+)/) || [])[1];
             if (!id) {
-                document.getElementById('articleWrap').innerHTML = '<div class="post-tip">文章不存在或已被删除</div>';
+                document.getElementById('articleWrap').innerHTML = '<div class="post-tip">文章不存在</div>';
             } else {
                 fetch('/api/articles/' + id)
                     .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
                     .then(function (r) {
                         var wrap = document.getElementById('articleWrap');
                         if (r.status !== 200) {
-                            wrap.innerHTML = '<div class="post-tip">' + esc(r.data.message || '文章不存在或已被删除') + '</div>';
+                            wrap.innerHTML = '<div class="post-tip">' + esc(r.data.message || '文章不存在') + '</div>';
                             return;
                         }
                         var a = r.data.article;

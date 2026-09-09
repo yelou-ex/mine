@@ -189,6 +189,27 @@ function validateArticle(body) {
   return { value: { title, content, category, tags: tags.join(',') } };
 }
 
+/**
+ * 链接白名单校验（纵深防御：link 字段可能经数据库迁移/种子/直接改库进入，
+ * 前端再次校验前，API 出参先做协议白名单过滤）。
+ * 仅允许：空串、相对路径/锚点、http/https/mailto；
+ * 拒绝 javascript:、data:、vbscript: 等危险协议及 // 协议相对地址。
+ * 非法值返回空串（前端据此回退到 /article?id=N）。
+ */
+function sanitizeLink(input) {
+  let s = String(input == null ? '' : input).trim();
+  if (!s) return '';
+  // 浏览器 URL 解析器会先移除 URI 中所有空白/控制字符，同步剥离再判断协议（防 "java\tscript:" 绕过）
+  const stripped = s.replace(/[\u0000-\u0020]/g, '').toLowerCase();
+  const m = stripped.match(/^([a-z][a-z0-9+.-]*):/);
+  if (m) {
+    const scheme = m[1];
+    if (scheme !== 'http' && scheme !== 'https' && scheme !== 'mailto') return '';
+  }
+  if (s.startsWith('//')) return ''; // 拒绝 //evil.com 协议相对跳转
+  return s;
+}
+
 /* ================= 评论（REQ-25 ~ 33 / BC-27 ~ 36） ================= */
 // 评论内容统一按纯文本处理：先整体剔除危险元素（含其内容），再去除剩余 HTML 标签
 function sanitizeComment(raw) {
@@ -389,7 +410,7 @@ app.get('/api/articles', (req, res) => {
   const tag = typeof req.query.tag === 'string' ? req.query.tag.trim() : '';
   try {
     const withSummary = (rows) =>
-      rows.map((a) => ({ ...a, summary: makeSummary(a.content) }));
+      rows.map((a) => ({ ...a, link: sanitizeLink(a.link), summary: makeSummary(a.content) }));
 
     let sql = 'SELECT id, title, category, tags, link, content, created_at FROM articles WHERE 1=1';
     const params = [];
@@ -441,13 +462,13 @@ app.get('/api/articles/tags', (req, res) => {
 
 app.get('/api/articles/:id', (req, res) => {
   const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: '文章不存在或已被删除' });
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: '文章不存在' });
   try {
     const row = db
       .prepare('SELECT id, title, content, category, tags, link, created_at FROM articles WHERE id = ?')
       .get(id);
-    if (!row) return res.status(404).json({ message: '文章不存在或已被删除' });
-    res.json({ article: row });
+    if (!row) return res.status(404).json({ message: '文章不存在' });
+    res.json({ article: { ...row, link: sanitizeLink(row.link) } });
   } catch (e) {
     console.error('[articles.detail]', e);
     res.status(500).json({ message: '系统繁忙，请稍后重试' });
@@ -458,12 +479,13 @@ app.get('/api/articles/:id', (req, res) => {
 // 评论列表（REQ-27 / REQ-29 / BC-32）
 app.get('/api/articles/:id/comments', (req, res) => {
   const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ message: '文章不存在或已被删除' });
+  if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ message: '文章不存在' });
   try {
     const article = db.prepare('SELECT id FROM articles WHERE id = ?').get(id);
-    if (!article) return res.status(404).json({ message: '文章不存在或已被删除' });
+    if (!article) return res.status(404).json({ message: '文章不存在' });
+    // 数据最小化：公开接口不返回 email（评论邮箱仅存库供作者回信，后台 /api/admin/comments 仍可查）
     const rows = db
-      .prepare('SELECT id, nickname, email, content, created_at FROM comments WHERE article_id = ? ORDER BY id ASC')
+      .prepare('SELECT id, nickname, content, created_at FROM comments WHERE article_id = ? ORDER BY id ASC')
       .all(id);
     res.json({ comments: rows, count: rows.length });
   } catch (e) {
@@ -475,10 +497,10 @@ app.get('/api/articles/:id/comments', (req, res) => {
 // 发表评论（REQ-25 ~ 31 / BC-27 ~ 31、33 ~ 36）
 app.post('/api/articles/:id/comments', (req, res) => {
   const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ message: '文章不存在或已被删除' });
+  if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ message: '文章不存在' });
   try {
     const article = db.prepare('SELECT id FROM articles WHERE id = ?').get(id);
-    if (!article) return res.status(404).json({ message: '文章不存在或已被删除' }); // BC-32
+    if (!article) return res.status(404).json({ message: '文章不存在' }); // BC-32（公开接口中性文案）
 
     const result = validateComment(req.body);
     if (result.error) return res.status(400).json({ message: result.error });

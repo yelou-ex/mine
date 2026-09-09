@@ -571,6 +571,22 @@
                 return String(s || '').replace('T', ' ').slice(0, 16);
             }
 
+            // 链接安全检查：只允许 http/https/mailto、相对路径与锚点，
+            // 拒绝 javascript:/data:/vbscript: 等危险协议及 //协议相对地址（防 XSS 纵深防御）
+            function safeHref(v) {
+                var s = String(v == null ? '' : v).trim();
+                if (!s) return '';
+                // 浏览器 URL 解析器会先移除 URI 中所有空白/控制字符，同步剥离再判断协议（防 "java\tscript:" 绕过）
+                var stripped = s.replace(/[\u0000-\u0020]/g, '').toLowerCase();
+                var m = stripped.match(/^([a-z][a-z0-9+.-]*):/);
+                if (m) {
+                    var scheme = m[1];
+                    if (scheme !== 'http' && scheme !== 'https' && scheme !== 'mailto') return '';
+                }
+                if (s.slice(0, 2) === '//') return ''; // 拒绝 //evil.com 协议相对跳转
+                return s;
+            }
+
             // 渲染文章列表
             function renderArticles(articles) {
                 var box = document.getElementById('posts');
@@ -585,7 +601,10 @@
                 }
                 box.innerHTML = articles.map(function (a) {
                     // 有 link 的文章（如三个原有静态页面）点击进入静态页面，否则进入文章详情页
-                    var href = a.link ? a.link : 'article.html?id=' + a.id;
+                    // 用 clean URL（/article?id=N）而非 article.html?id=N：平台对 .html 的 308 归一化会丢弃 query 参数
+                    // link 可能来自数据库，必须过协议白名单校验并转义，防止 javascript:/data: 等 XSS
+                    var href = safeHref(a.link);
+                    href = href ? esc(href) : 'article?id=' + a.id;
                     var tags = (a.tags || '').split(',').filter(Boolean)
                         .map(function (t) { return '<span class="tag" data-tag="' + esc(t) + '">' + esc(t) + '</span>'; })
                         .join('');
@@ -610,7 +629,9 @@
                     return;
                 }
                 ul.innerHTML = articles.slice(0, 5).map(function (a) {
-                    var href = a.link ? a.link : 'article.html?id=' + a.id;
+                    // 同 renderArticles：link 必须过协议白名单校验并转义；详情页用 clean URL 保 query
+                    var href = safeHref(a.link);
+                    href = href ? esc(href) : 'article?id=' + a.id;
                     return '<li><a href="' + href + '">' + esc(a.title) + '</a></li>';
                 }).join('');
             }

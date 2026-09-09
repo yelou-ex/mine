@@ -4,7 +4,7 @@
  * 逻辑与本地 Express 版（server.js）保持一致，运行于 Workers 无状态环境。
  */
 import {
-  json, parseCookies, sanitizeHtml, validateArticle, ensureSchema,
+  json, parseCookies, sanitizeHtml, sanitizeLink, validateArticle, ensureSchema,
   hashPassword, verifyPassword, createSessionToken, verifySessionToken,
   makeCookie, getAdminSession, getCsrfCookie,
   logLogin, checkLocked, recordLoginFailure, clearLoginFailures,
@@ -165,7 +165,8 @@ export async function onRequest(context) {
       
       const stmt = env.DB.prepare(sql);
       const rows = args.length ? await stmt.bind(...args).all() : await stmt.all();
-      return json({ articles: rows.results.map((a) => ({ ...a, summary: makeSummary(a.content) })) });
+      // link 字段出参做协议白名单过滤（防 javascript:/data: 等 XSS 载荷）
+      return json({ articles: rows.results.map((a) => ({ ...a, link: sanitizeLink(a.link), summary: makeSummary(a.content) })) });
     }
 
     // 标签统计（标签云）
@@ -189,8 +190,9 @@ export async function onRequest(context) {
       const row = await env.DB.prepare(
         'SELECT id, title, content, category, tags, link, created_at FROM articles WHERE id = ?'
       ).bind(Number(detailMatch[1])).first();
-      if (!row) return json({ message: '文章不存在或已被删除' }, 404);
-      return json({ article: row });
+      // 信息级加固：公开接口不透露“删除”操作的存在，统一为中性 404 文案
+      if (!row) return json({ message: '文章不存在' }, 404);
+      return json({ article: { ...row, link: sanitizeLink(row.link) } });
     }
 
     /* ---------- 前台评论（REQ-25 ~ 31 / BC-27 ~ 36） ---------- */
@@ -198,16 +200,17 @@ export async function onRequest(context) {
     if (commentMatch && method === 'GET') {
       const aid = Number(commentMatch[1]);
       const article = await env.DB.prepare('SELECT id FROM articles WHERE id = ?').bind(aid).first();
-      if (!article) return json({ message: '文章不存在或已被删除' }, 404); // BC-32
+      if (!article) return json({ message: '文章不存在' }, 404); // BC-32（公开接口中性文案）
+      // 数据最小化：公开接口不返回 email（评论邮箱仅存库供作者回信，后台 /api/admin/comments 仍可查）
       const rows = await env.DB.prepare(
-        'SELECT id, nickname, email, content, created_at FROM comments WHERE article_id = ? ORDER BY id ASC'
+        'SELECT id, nickname, content, created_at FROM comments WHERE article_id = ? ORDER BY id ASC'
       ).bind(aid).all();
       return json({ comments: rows.results, count: rows.results.length });
     }
     if (commentMatch && method === 'POST') {
       const aid = Number(commentMatch[1]);
       const article = await env.DB.prepare('SELECT id FROM articles WHERE id = ?').bind(aid).first();
-      if (!article) return json({ message: '文章不存在或已被删除' }, 404); // BC-32
+      if (!article) return json({ message: '文章不存在' }, 404); // BC-32（公开接口中性文案）
 
       const body = await readBody(request);
       if (!body) return json({ message: '请求体格式错误' }, 400);
@@ -255,7 +258,7 @@ export async function onRequest(context) {
         sql += ' ORDER BY created_at DESC, id DESC';
         const stmt = env.DB.prepare(sql);
         const rows = args.length ? await stmt.bind(...args).all() : await stmt.all();
-        return json({ articles: rows.results });
+        return json({ articles: rows.results.map((a) => ({ ...a, link: sanitizeLink(a.link) })) });
       }
       // 提交文章（REQ-10 ~ 18）
       if (method === 'POST') {

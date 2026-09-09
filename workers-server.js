@@ -63,6 +63,27 @@ function makeSummary(content, maxLen = 120) {
   return text.length > maxLen ? text.slice(0, maxLen) + '…' : text;
 }
 
+/**
+ * 链接白名单校验（纵深防御：link 字段可能经数据库迁移/种子/直接改库进入，
+ * 前端再次校验前，API 出参先做协议白名单过滤）。
+ * 仅允许：空串、相对路径/锚点、http/https/mailto；
+ * 拒绝 javascript:、data:、vbscript: 等危险协议及 // 协议相对地址。
+ * 非法值返回空串（前端据此回退到 /article?id=N）。
+ */
+function sanitizeLink(input) {
+  let s = String(input == null ? '' : input).trim();
+  if (!s) return '';
+  // 浏览器 URL 解析器会先移除 URI 中所有空白/控制字符，同步剥离再判断协议（防 "java\tscript:" 绕过）
+  const stripped = s.replace(/[\u0000-\u0020]/g, '').toLowerCase();
+  const m = stripped.match(/^([a-z][a-z0-9+.-]*):/);
+  if (m) {
+    const scheme = m[1];
+    if (scheme !== 'http' && scheme !== 'https' && scheme !== 'mailto') return '';
+  }
+  if (s.startsWith('//')) return ''; // 拒绝 //evil.com 协议相对跳转
+  return s;
+}
+
 // 获取 Session
 function getSession(cookieHeader) {
   if (!cookieHeader) return null;
@@ -150,7 +171,7 @@ async function handleRequest(request, env) {
   if (path.startsWith('/api/articles/') && method === 'GET') {
     const id = parseInt(path.split('/').pop());
     if (isNaN(id)) {
-      return new Response(JSON.stringify({ message: '文章不存在或已被删除' }), {
+      return new Response(JSON.stringify({ message: '文章不存在' }), {
         status: 400, headers: { 'Content-Type': 'application/json' }
       });
     }
@@ -279,7 +300,7 @@ async function handleGetArticles(request, env) {
     sql += ' ORDER BY created_at DESC, id DESC';
 
     const result = await env.DB.prepare(sql).all(params);
-    const articles = result.results.map(a => ({ ...a, summary: makeSummary(a.content) }));
+    const articles = result.results.map(a => ({ ...a, link: sanitizeLink(a.link), summary: makeSummary(a.content) }));
 
     return new Response(JSON.stringify({ articles }), {
       headers: { 'Content-Type': 'application/json' }
@@ -300,12 +321,12 @@ async function handleGetArticle(id, env) {
     ).get(id);
     
     if (!article) {
-      return new Response(JSON.stringify({ message: '文章不存在或已被删除' }), {
+      return new Response(JSON.stringify({ message: '文章不存在' }), {
         status: 404, headers: { 'Content-Type': 'application/json' }
       });
     }
     
-    return new Response(JSON.stringify({ article }), {
+    return new Response(JSON.stringify({ article: { ...article, link: sanitizeLink(article.link) } }), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (e) {
@@ -372,7 +393,8 @@ async function handleAdminGetArticles(request, env, session) {
     sql += ' ORDER BY created_at DESC, id DESC';
 
     const result = await env.DB.prepare(sql).all(params);
-    return new Response(JSON.stringify({ articles: result.results }), {
+    const articles = result.results.map(a => ({ ...a, link: sanitizeLink(a.link) }));
+    return new Response(JSON.stringify({ articles }), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (e) {

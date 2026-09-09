@@ -302,6 +302,85 @@ check('退出后未登录', r.status === 200 && r.data.loggedIn === false, `got 
 r = await call('/api/admin/articles', { method: 'POST', body: { title: 'x', category: '博客', content: '<p>x</p>' } });
 check('退出后提交 → 401', r.status === 401, `got ${r.status}`);
 
+console.log('\n[8] 安全修复回归（link 白名单 / 公开评论 email 脱敏）');
+// 8.1 sanitizeLink 单元向量（functions/_lib.mjs）
+const { sanitizeLink } = await import('./functions/_lib.mjs');
+const linkVectors = [
+  ['javascript:alert(1)', ''],
+  ['  javascript:alert(1)', ''],
+  ['java\tscript:alert(1)', ''],
+  ['JAVASCRIPT:alert(1)', ''],
+  ['data:text/html;base64,PHNjcmlwdD4=', ''],
+  ['vbscript:msgbox(1)', ''],
+  ['//evil.com/x', ''],
+  ['file:///etc/passwd', ''],
+  ['introduce.html', 'introduce.html'],
+  ['/some/page.html', '/some/page.html'],
+  ['./a.html', './a.html'],
+  ['#anchor', '#anchor'],
+  ['https://example.com/a?b=c', 'https://example.com/a?b=c'],
+  ['mailto:a@b.co', 'mailto:a@b.co'],
+  ['', ''],
+];
+for (const [input, expect] of linkVectors) {
+  check(`sanitizeLink(${JSON.stringify(input)}) → ${JSON.stringify(expect)}`, sanitizeLink(input) === expect, `got ${JSON.stringify(sanitizeLink(input))}`);
+}
+
+// 8.2 API 出参过滤：直接向库注入恶意 link，验证前台接口已清洗
+db.prepare("UPDATE articles SET link = 'javascript:alert(document.cookie)' WHERE id = 3").run();
+r = await call('/api/articles');
+check('GET /api/articles：恶意 link 被清空', r.status === 200 && r.data.articles.find((a) => a.id === 3).link === '', JSON.stringify(r.data.articles.find((a) => a.id === 3)));
+r = await call('/api/articles/3');
+check('GET /api/articles/3：恶意 link 被清空', r.status === 200 && r.data.article.link === '', JSON.stringify(r.data.article));
+db.prepare("UPDATE articles SET link = 'data:text/html;base64,PHNjcmlwdD4=' WHERE id = 3").run();
+r = await call('/api/articles/3');
+check('GET /api/articles/3：data: link 被清空', r.status === 200 && r.data.article.link === '', JSON.stringify(r.data.article));
+db.prepare("UPDATE articles SET link = 'honor.html' WHERE id = 3").run();
+r = await call('/api/articles/3');
+check('GET /api/articles/3：正常相对路径 link 保留', r.status === 200 && r.data.article.link === 'honor.html', JSON.stringify(r.data.article));
+
+// 8.3 公开评论接口不返回 email；后台仍可见
+db.prepare("INSERT INTO comments (article_id, nickname, email, content, ip, created_ms) VALUES (1, 'leak-test', 'secret@reader.com', 'email-leak-check', '1.2.3.4', " + Math.floor(Date.now() / 1000) + ")").run();
+r = await call('/api/articles/1/comments');
+check('公开评论 GET：响应无 email 字段', r.status === 200 && r.data.comments.every((c) => !('email' in c)), JSON.stringify((r.data.comments || []).map((c) => Object.keys(c))));
+check('公开评论 GET：评论数据仍在（仅脱敏 email 字段）', r.data.comments.some((c) => c.nickname === 'leak-test'));
+// 重新登录以访问后台评论接口
+await call('/api/login', { method: 'POST', body: { username: 'admin', password: 'admin123' } });
+const cmTok = (await call('/api/csrf-token')).data.csrfToken;
+r = await call('/api/admin/comments');
+check('后台评论 GET：email 仍可见（仅公开接口脱敏）', r.status === 200 && r.data.comments.some((c) => c.nickname === 'leak-test' && c.email === 'secret@reader.com'), JSON.stringify(r.data.comments[0]));
+// 清理测试评论
+const leakCm = r.data.comments.find((c) => c.nickname === 'leak-test');
+await call('/api/admin/comments/' + leakCm.id, { method: 'DELETE', csrf: cmTok });
+
+console.log('\n[9] SEO / UX 增强（中性 404 文案、sitemap.xml、article.html query 保留）');
+// 9.1 公开 404 文案中性化（不透露“删除”操作的存在）
+r = await call('/api/articles/99999');
+check('公开详情 404 文案为“文章不存在”（无“删除”字样）', r.status === 404 && r.data.message === '文章不存在' && !/删除/.test(r.data.message), r.text);
+r = await call('/api/articles/99999/comments');
+check('公开评论 404 文案为“文章不存在”', r.status === 404 && r.data.message === '文章不存在', r.text);
+// 9.2 sitemap.xml 函数（动态收录静态页 + 后台文章）
+{
+  const { onRequest: sitemapFn } = await import('./functions/sitemap.xml.js');
+  await call('/api/login', { method: 'POST', body: { username: 'admin', password: 'admin123' } });
+  const smTok = (await call('/api/csrf-token')).data.csrfToken;
+  const smArt = await call('/api/admin/articles', { method: 'POST', body: { title: 'Sitemap测试文章', category: '生活感悟', content: '<p>sitemap</p>' }, csrf: smTok });
+  check('辅助文章创建成功', smArt.status === 200, smArt.text);
+  const smResp = await sitemapFn({ request: new Request('https://yelou.pages.dev/sitemap.xml'), env: { DB: new MockDB(db), SESSION_SECRET: 'test-secret' }, params: {} });
+  const smText = await smResp.text();
+  check('sitemap.xml → 200 application/xml', smResp.status === 200 && /application\/xml/.test(smResp.headers.get('Content-Type') || '') && smText.includes('<urlset'), smText.slice(0, 120));
+  check('sitemap 含静态页与新文章', smText.includes('/introduce.html') && smText.includes('/article?id=' + smArt.data.id), smText);
+  check('sitemap 不含带 link 的固定页文章', !/<loc>[^<]*\/article\.html/.test(smText));
+}
+// 9.3 article.html.js：302 保留 query（旧链接 /article.html?id=4 → /article?id=4）
+{
+  const { onRequest: articleHtmlFn } = await import('./functions/article.html.js');
+  const ar = await articleHtmlFn({ request: new Request('https://yelou.pages.dev/article.html?id=4'), env: {}, params: {} });
+  check('article.html?id=4 → 302 /article?id=4（query 保留）', ar.status === 302 && ar.headers.get('Location') === '/article?id=4', `loc=${ar.headers.get('Location')}`);
+  const ar2 = await articleHtmlFn({ request: new Request('https://yelou.pages.dev/article.html'), env: {}, params: {} });
+  check('article.html（无参）→ 302 /article', ar2.status === 302 && ar2.headers.get('Location') === '/article', `loc=${ar2.headers.get('Location')}`);
+}
+
 console.log(`\n========================================`);
 console.log(`通过 ${passed} 项 / 失败 ${failed} 项`);
 console.log(`========================================`);

@@ -205,6 +205,27 @@ export function sanitizeHtml(input) {
   return html;
 }
 
+/**
+ * 链接白名单校验（纵深防御：link 字段可能经数据库迁移/种子/直接改库进入，
+ * 前端再次校验前，API 出参先做协议白名单过滤）。
+ * 仅允许：空串、相对路径/锚点、http/https/mailto；
+ * 拒绝 javascript:、data:、vbscript: 等危险协议及 // 协议相对地址。
+ * 非法值返回空串（前端据此回退到 /article?id=N）。
+ */
+export function sanitizeLink(input) {
+  let s = String(input == null ? '' : input).trim();
+  if (!s) return '';
+  // 浏览器 URL 解析器会先移除 URI 中所有空白/控制字符，同步剥离再判断协议（防 "java\tscript:" 绕过）
+  const stripped = s.replace(/[\u0000-\u0020]/g, '').toLowerCase();
+  const m = stripped.match(/^([a-z][a-z0-9+.-]*):/);
+  if (m) {
+    const scheme = m[1];
+    if (scheme !== 'http' && scheme !== 'https' && scheme !== 'mailto') return '';
+  }
+  if (s.startsWith('//')) return ''; // 拒绝 //evil.com 协议相对跳转
+  return s;
+}
+
 /* ================= 文章字段校验（与 Express 版规则一致） ================= */
 export function validateArticle(body) {
   const title = typeof body.title === 'string' ? body.title.trim() : '';
