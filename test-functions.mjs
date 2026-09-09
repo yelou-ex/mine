@@ -5,6 +5,7 @@
  */
 import Database from 'better-sqlite3';
 import { onRequest } from './functions/api/[[path]].mjs';
+import { onRequest as articleOnRequest } from './functions/article.js';
 
 /* ================= Mock D1（实现 prepare/bind/all/first/run/batch） ================= */
 class MockStmt {
@@ -102,6 +103,29 @@ let failed = 0;
 function check(name, cond, extra = '') {
   if (cond) { passed++; console.log(`  ✓ ${name}`); }
   else { failed++; console.log(`  ✗ ${name} ${extra}`); }
+}
+
+// /article 预渲染函数（functions/article.js）的请求模拟：context.next() 返回静态壳
+function pageShell() {
+  return '<html><head>' +
+    '<title>文章详情 - yelou的个人博客</title>' +
+    '<meta name="description" content="杨楼的个人博客文章页：学习笔记与生活感悟。">' +
+    '<meta property="og:title" content="文章详情 - yelou的个人博客">' +
+    '<meta property="og:description" content="杨楼的个人博客文章页：学习笔记与生活感悟。">' +
+    '<meta property="og:url" content="https://yelou.pages.dev/article">' +
+    '</head><body><div id="articleWrap"></div></body></html>';
+}
+async function callPage(path) {
+  const request = new Request('https://test.local' + path, { headers: new Headers() });
+  const context = {
+    request,
+    env: { DB: new MockDB(db), SESSION_SECRET: 'test-secret' },
+    params: {},
+    next: async () => new Response(pageShell(), { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }),
+  };
+  const response = await articleOnRequest(context);
+  const text = await response.text();
+  return { status: response.status, text, location: response.headers.get('Location') };
 }
 
 console.log('\n[0] 种子合并迁移（三篇种子 → 单一「关于我」入口）');
@@ -468,6 +492,38 @@ check('公开评论 404 文案为“文章不存在”', r.status === 404 && r.d
   check('article.html?id=4 → 302 /article?id=4（query 保留）', ar.status === 302 && ar.headers.get('Location') === '/article?id=4', `loc=${ar.headers.get('Location')}`);
   const ar2 = await articleHtmlFn({ request: new Request('https://yelou.pages.dev/article.html'), env: {}, params: {} });
   check('article.html（无参）→ 302 /article', ar2.status === 302 && ar2.headers.get('Location') === '/article', `loc=${ar2.headers.get('Location')}`);
+}
+
+console.log('\n[10] /article 预渲染（Bing 指引 §8/§9/§13/§21 索引增强）');
+{
+  // 专用预渲染测试文章（html / markdown 各一篇 + 一篇正文可见性）
+  db.prepare("INSERT INTO articles (id, title, content, category, tags, link, format, created_at) VALUES (92, '预渲染正文', '<p>正文可见测试内容</p>', '博客', '', '', 'html', '2023-10-15 00:00:00')").run();
+  let p = await callPage('/article?id=92');
+  check('/article?id=92 → 200', p.status === 200, `got ${p.status}`);
+  check('预渲染：独立 <title>（消除全站重复标题）', p.text.includes('<title>预渲染正文 - yelou的个人博客</title>'), p.text.slice(0, 200));
+  check('预渲染：正文写入页面源码（不依赖 JS 渲染）', p.text.includes('article-body') && p.text.includes('<p>正文可见测试内容</p>'), '');
+  check('预渲染：meta description 已更新', p.text.includes('<meta name="description" content="正文可见测试内容 - yelou的个人博客'), p.text.match(/<meta name="description"[^>]*>/)?.[0] || '');
+  check('预渲染：og:url 为当前 URL', p.text.includes('https://test.local/article?id=92'), '');
+  check('预渲染标记存在（前端保留逻辑依赖）', p.text.includes('data-prerendered="1"'), '');
+
+  p = await callPage('/article?id=999999');
+  check('不存在文章 → 真 404（消除软 404）', p.status === 404 && p.text.includes('404'), `got ${p.status}`);
+  check('404 页 noindex', p.text.includes('noindex'), '');
+
+  p = await callPage('/article');
+  check('无 id → 302 回首页（避免低价值 URL）', p.status === 302 && p.location === 'https://test.local/', `got ${p.status} loc=${p.location}`);
+
+  // markdown 表格预渲染
+  db.prepare("INSERT INTO articles (id, title, content, category, tags, link, format, created_at) VALUES (90, '预渲染表格', '## 表\n| 甲 | 乙 |\n|---|---|\n| 1 | 2 |', '博客', '', '', 'markdown', '2023-10-15 00:00:00')").run();
+  p = await callPage('/article?id=90');
+  check('markdown 表格服务端转 <table> 并过白名单', p.status === 200 && p.text.includes('<table>') && p.text.includes('<th>'), p.text.slice(0, 300));
+
+  // html 内容预渲染仍剥离危险标签
+  db.prepare("INSERT INTO articles (id, title, content, category, tags, link, format, created_at) VALUES (91, '预渲染过滤', '<p>ok</p><script>alert(1)</script>', '博客', '', '', 'html', '2023-10-15 00:00:00')").run();
+  p = await callPage('/article?id=91');
+  check('html 预渲染保留正文并剥离 script', p.status === 200 && p.text.includes('<p>ok</p>') && !/<script/i.test(p.text), p.text.slice(0, 300));
+
+  db.prepare("DELETE FROM articles WHERE id IN (90, 91, 92)").run();
 }
 
 console.log(`\n========================================`);

@@ -265,7 +265,10 @@
                     .then(function (r) {
                         var wrap = document.getElementById('articleWrap');
                         if (r.status !== 200) {
-                            wrap.innerHTML = '<div class="post-tip">' + esc(r.data.message || '文章不存在') + '</div>';
+                            // 预渲染内容存在时保留正文（文章在页面加载后被删除等竞态场景，不毁掉已渲染的内容）
+                            if (!wrap.hasAttribute('data-prerendered')) {
+                                wrap.innerHTML = '<div class="post-tip">' + esc(r.data.message || '文章不存在') + '</div>';
+                            }
                             return;
                         }
                         var a = r.data.article;
@@ -297,7 +300,11 @@
                         initComments();
                     })
                     .catch(function () {
-                        document.getElementById('articleWrap').innerHTML = '<div class="post-tip">文章加载失败，请稍后重试</div>';
+                        var wrap = document.getElementById('articleWrap');
+                        // 网络失败但有预渲染正文时保留内容，不清屏
+                        if (!wrap.hasAttribute('data-prerendered')) {
+                            wrap.innerHTML = '<div class="post-tip">文章加载失败，请稍后重试</div>';
+                        }
                     });
             }
 
