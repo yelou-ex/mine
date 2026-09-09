@@ -57,6 +57,12 @@
             border-bottom: 2px solid #f0f0f0;
         }
         
+        .profile-section h3 {
+            color: #333;
+            font-size: 1.1rem;
+            margin: 20px 0 10px;
+        }
+        
         p {
             margin-bottom: 15px;
         }
@@ -84,48 +90,125 @@
             color: #333;
             margin-bottom: 10px;
         }
-        
-        .contact-form {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
+
+        /* 成长统计表格（并入自 学习之路） */
+        .table-wrap {
+            overflow-x: auto;
+            margin: 12px 0;
         }
-        
-        .form-group {
-            margin-bottom: 15px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        
-        input, textarea {
+
+        .stat-table {
             width: 100%;
-            padding: 10px;
+            border-collapse: collapse;
+            min-width: 480px;
+        }
+
+        .stat-table th, .stat-table td {
             border: 1px solid #ddd;
-            border-radius: 4px;
+            padding: 10px;
+            text-align: left;
+        }
+
+        .stat-table th {
+            background-color: #f2f2f2;
+        }
+
+        /* 图表图片（并入自 学习之路） */
+        .image-container {
+            margin: 14px 0;
+            text-align: center;
+        }
+
+        .image-container img {
+            max-width: 80%;
+            height: auto;
+            border-radius: 6px;
+        }
+
+        .image-container p {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            margin-top: 8px;
+        }
+
+        /* 生活视频（并入自 学习之路） */
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            margin: 14px 0;
+            background: #000;
+            border-radius: 6px;
+        }
+
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+
+        /* 成果轮播（并入自 一路所获） */
+        .carousel {
+            position: relative;
+            max-width: 800px;
+            margin: 0 auto;
+            overflow: hidden;
+            border-radius: 6px;
+        }
+
+        .carousel-item {
+            display: none;
+            width: 100%;
+        }
+
+        .carousel-item.active {
+            display: block;
+        }
+
+        .carousel-item img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .carousel-caption {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .carousel-caption h3 {
+            margin: 0;
+            color: #fff;
             font-size: 1rem;
         }
-        
-        textarea {
-            resize: vertical;
-            min-height: 100px;
-        }
-        
-        button {
-            background: linear-gradient(135deg, #6e8efb, #a777e3);
-            color: white;
+
+        .carousel-control {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: rgba(0, 0, 0, 0.5);
+            color: #fff;
             border: none;
-            padding: 12px 25px;
-            border-radius: 4px;
+            padding: 12px 14px;
             cursor: pointer;
-            font-size: 1rem;
-            transition: background 0.3s ease;
+            font-size: 18px;
+            border-radius: 4px;
         }
-		
-		nav ul {
+
+        .carousel-control.prev { left: 10px; }
+        .carousel-control.next { right: 10px; }
+
+        nav ul {
             display: flex;
             list-style: none;
         }
@@ -146,10 +229,6 @@
             background-color: #ecf0f1;
         }
         
-        button:hover {
-            background: linear-gradient(135deg, #5a7df7, #9367d1);
-        }
-        
         .footer {
              background-color: #2c3e50;
             color: #ecf0f1;
@@ -168,12 +247,6 @@
             color: #6e8efb;
             font-size: 1.2rem;
             text-decoration: none;
-        }
-        
-        @media (max-width : 760px ){
-            .contact-form {
-                grid-template-columns: 1fr;
-            }
         }
     </style>
 </head>
@@ -196,6 +269,8 @@
 <p>注重行事效率，讨厌形式主义&nbsp;</p>
           <p>性格时i时e</p>
             <p>各种游戏都有在玩&nbsp;</p>
+            <p>喜欢打羽毛球和篮球</p>
+            <p>邮箱：yelouyl1@gmail.com</p>
         </section>
         
         <section class="profile-section">
@@ -205,9 +280,9 @@
                 <span class="skill">听歌&nbsp;</span>
                 <span class="skill">游戏&nbsp;</span>
             </div>
-      </section>
-<section class="profile-section">
-    <h2>教育背景</h2>
+          </section>
+        <section class="profile-section">
+            <h2>教育背景</h2>
             <div class="education">
                 <h3>西安电子科技大学&nbsp;</h3>
                 <p><strong>专业：网络空间安全</strong></p>
@@ -215,29 +290,90 @@
                 <p>&nbsp;</p>
             </div>
         </section>
-        
+
+        <!-- 学习之路（原 myway.html 并入） -->
         <section class="profile-section">
-            <h2>联系我</h2>
-            <form class="contact-form">
-                <div class="form-group">
-                    <label for="name">姓名</label>
-                    <input type="text" id="name" name="name" placeholder="请输入您的姓名">
+            <h2>我的学习之路</h2>
+            <h3>个人统计信息</h3>
+            <div class="table-wrap">
+                <table class="stat-table">
+                    <tr>
+                        <th>年龄</th>
+                        <th>教育阶段</th>
+                        <th>兴趣爱好</th>
+                        <th>重要事件</th>
+                    </tr>
+                    <tr>
+                        <td>6-12岁</td>
+                        <td>小学</td>
+                        <td>绘画、阅读</td>
+                        <td>小升初的全市13名&nbsp;</td>
+                    </tr>
+                    <tr>
+                        <td>13-15岁</td>
+                        <td>初中</td>
+                        <td>篮球</td>
+                        <td>考进市重点高中&nbsp;</td>
+                    </tr>
+                    <tr>
+                        <td>16-18岁</td>
+                        <td>高中</td>
+                        <td>音乐</td>
+                        <td>参与NOIP比赛得奖&nbsp;</td>
+                    </tr>
+                    <tr>
+                        <td>19-22岁</td>
+                        <td>大学</td>
+                        <td>编程、游戏</td>
+                        <td>无&nbsp;</td>
+                    </tr>
+                </table>
+            </div>
+
+            <h3>学习成长曲线</h3>
+            <div class="image-container">
+                <img src="picture/成长.png" alt="学习成长曲线图">
+                <p>此图表展示了我在不同教育阶段的学习成绩变化。</p>
+            </div>
+
+            <h3>兴趣爱好分布</h3>
+            <div class="image-container">
+                <img src="picture/兴趣.png" alt="兴趣爱好分布图">
+                <p>此图表展示了我不同兴趣爱好的时间分配。</p>
+            </div>
+
+            <h3>生活点滴视频</h3>
+            <div class="video-container">
+                <iframe src="https://player.bilibili.com/player.html?isOutside=true&aid=984714877&bvid=BV1ct4y1n7t9&cid=807427488&p=1&autoplay=0&high_quality=1&muted=1&danmaku=0" scrolling="no" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+            </div>
+            <p>喜欢唱跳rap篮球＿|￣|○</p>
+        </section>
+
+        <!-- 一路所获（原 honor.html 并入） -->
+        <section class="profile-section">
+            <h2>一路所获</h2>
+            <div class="carousel" id="honorCarousel">
+                <div class="carousel-item active">
+                    <img src="picture/数学.jpg" alt="高中数学竞赛省三等奖">
+                    <div class="carousel-caption">
+                        <h3>高中数学竞赛省三等奖</h3>
+                    </div>
                 </div>
-                
-                <div class="form-group">
-                    <label for="email">邮箱</label>
-                    <input type="email" id="email" name="email" placeholder="请输入您的邮箱">
+                <div class="carousel-item">
+                    <img src="picture/noi.png" alt="noip竞赛贵州二等奖">
+                    <div class="carousel-caption">
+                        <h3>noip竞赛贵州二等奖</h3>
+                    </div>
                 </div>
-                
-                <div class="form-group" style="grid-column: span 2;">
-                    <label for="message">留言</label>
-                    <textarea id="message" name="message" placeholder="请输入您的留言内容"></textarea>
+                <div class="carousel-item">
+                    <img src="picture/建模.jpg" alt="中学生数学建模遵义市三等奖">
+                    <div class="carousel-caption">
+                        <h3>中学生数学建模遵义市三等奖</h3>
+                    </div>
                 </div>
-                
-                <div style="grid-column: span 2; text-align: right;">
-                    <button type="submit">发送留言</button>
-                </div>
-            </form>
+                <button class="carousel-control prev" id="honorPrev" aria-label="上一张">&#10094;</button>
+                <button class="carousel-control next" id="honorNext" aria-label="下一张">&#10095;</button>
+            </div>
         </section>
     </div>
     
@@ -246,10 +382,20 @@
     </footer>
 
     <script>
-        document.querySelector('form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            alert('留言功能需要后端支持，当前仅为示例。在实际应用中，您需要设置服务器端脚本来处理表单提交。');
-        });
+        // 成果轮播（自一路所获并入）：手动切换 + 每 5 秒自动轮播
+        (function () {
+            var slides = document.querySelectorAll('#honorCarousel .carousel-item');
+            if (!slides.length) return;
+            var current = 0;
+            function show(index) {
+                slides.forEach(function (s, i) { s.classList.toggle('active', i === index); });
+            }
+            function next() { current = (current + 1) % slides.length; show(current); }
+            function prev() { current = (current - 1 + slides.length) % slides.length; show(current); }
+            document.getElementById('honorPrev').addEventListener('click', prev);
+            document.getElementById('honorNext').addEventListener('click', next);
+            setInterval(next, 5000);
+        })();
     </script>
 </body>
 </html>

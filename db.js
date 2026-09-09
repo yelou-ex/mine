@@ -37,7 +37,8 @@ const DEFAULT_ARTICLES = [
     title: '我的学习之路',
     category: '博客',
     tags: '',
-    link: 'myway.html',
+    // 页面已并入 introduce.html（原 myway.html 已下线）
+    link: 'introduce.html',
     created_at: '2023-10-10 00:00:00',
     content:
       '<p>这部分记录了我的部分成长经历。</p>' +
@@ -47,7 +48,8 @@ const DEFAULT_ARTICLES = [
     title: '一路所获',
     category: '博客',
     tags: '',
-    link: 'honor.html',
+    // 页面已并入 introduce.html（原 honor.html 已下线）
+    link: 'introduce.html',
     created_at: '2023-10-05 00:00:00',
     content: '<p>这里是一些我曾经获得的荣誉。</p>',
   },
@@ -102,7 +104,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_comments_article ON comments (article_id);
 `);
 
-// 迁移：为已有数据库补 link 列，并为 3 篇种子文章设置指向原有静态页面的链接
+// 迁移：为已有数据库补 link 列，并为 3 篇种子文章设置指向静态页面的链接；
+// 学习之路/一路所获页面已并入 introduce.html，旧值 myway.html/honor.html 一并重定向
 function migrate() {
   const cols = db.prepare('PRAGMA table_info(articles)').all();
   if (!cols.some((c) => c.name === 'link')) {
@@ -111,8 +114,11 @@ function migrate() {
   }
   const upd = db.prepare("UPDATE articles SET link = ? WHERE title = ? AND link = ''");
   upd.run('introduce.html', '个人基本信息');
-  upd.run('myway.html', '我的学习之路');
-  upd.run('honor.html', '一路所获');
+  upd.run('introduce.html', '我的学习之路');
+  upd.run('introduce.html', '一路所获');
+  const repoint = db.prepare("UPDATE articles SET link = 'introduce.html' WHERE title = ? AND link = ?");
+  repoint.run('我的学习之路', 'myway.html');
+  repoint.run('一路所获', 'honor.html');
 }
 migrate();
 

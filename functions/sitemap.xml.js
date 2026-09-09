@@ -8,12 +8,10 @@ import { ensureSchema } from './_lib.mjs';
 
 const BASE = 'https://yelou.pages.dev';
 
-// 固定静态页（lastmod 仅作提示值，使用与种子文章一致的时间）
+// 固定静态页（学习之路/一路所获已并入 introduce.html，原 myway.html、honor.html 已下线）
 const STATIC_PAGES = [
   { loc: `${BASE}/`, lastmod: '2025-01-01' },
   { loc: `${BASE}/introduce.html`, lastmod: '2023-10-15' },
-  { loc: `${BASE}/myway.html`, lastmod: '2023-10-10' },
-  { loc: `${BASE}/honor.html`, lastmod: '2023-10-05' },
 ];
 
 export async function onRequest(context) {

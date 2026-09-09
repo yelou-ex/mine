@@ -86,7 +86,7 @@ npm run test:cf   # 36 项用例（用 better-sqlite3 模拟 D1，覆盖登录/�
 │   └── dashboard.html     # 后台管理页（列表/检索/添加/删除/批量删除/评论管理）
 ├── index.html             # 前台首页（动态加载文章 + 分类筛选）
 ├── article.html           # 前台文章详情页（含评论区）
-├── introduce.html / myway.html / honor.html   # 原有静态页面
+├── introduce.html         # 「关于我」页（个人简介/特长爱好/教育背景/我的学习之路/一路所获，已并入原 myway.html 与 honor.html）
 ├── picture/               # 图片资源
 ├── data/                  # 本地运行时数据（SQLite + 会话密钥，勿提交/勿公开）
 ├── test-e2e.mjs           # 本地 Express 版端到端测试（45 项）

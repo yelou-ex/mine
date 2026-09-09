@@ -59,7 +59,7 @@ const linkVectors = [
   ['vbscript:msgbox(1)', ''],
   ['//evil.com/x', ''],
   ['introduce.html', 'introduce.html'],
-  ['myway.html', 'myway.html'],
+  ['index.html', 'index.html'],
   ['/a/b.html', '/a/b.html'],
   ['./a.html', './a.html'],
   ['#anchor', '#anchor'],

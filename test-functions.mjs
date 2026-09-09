@@ -104,6 +104,21 @@ function check(name, cond, extra = '') {
   else { failed++; console.log(`  ✗ ${name} ${extra}`); }
 }
 
+console.log('\n[0] 页面合并迁移（学习之路/一路所获 并入 introduce.html）');
+// 模拟存量库：种子文章仍指向已下线的 myway.html / honor.html（建表 + 预置旧链接 + seeded 标记，
+// 使首次 ensureSchema 时跳过种子插入、直接执行链接重定向迁移）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS articles (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, content TEXT NOT NULL, category TEXT NOT NULL, tags TEXT NOT NULL DEFAULT '', link TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')));
+  CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+`);
+db.prepare("INSERT INTO articles (id, title, content, category, tags, link, created_at) VALUES (1, '个人基本信息', '<p>a</p>', '博客', '', 'introduce.html', '2023-10-15 00:00:00')").run();
+db.prepare("INSERT INTO articles (id, title, content, category, tags, link, created_at) VALUES (2, '我的学习之路', '<p>b</p>', '博客', '', 'myway.html', '2023-10-10 00:00:00')").run();
+db.prepare("INSERT INTO articles (id, title, content, category, tags, link, created_at) VALUES (3, '一路所获', '<p>c</p>', '博客', '', 'honor.html', '2023-10-05 00:00:00')").run();
+db.prepare("INSERT INTO app_meta (key, value) VALUES ('seeded', '1')").run();
+let migArticles = (await call('/api/articles')).data.articles;
+check('迁移：我的学习之路 myway.html → introduce.html', migArticles.some((a) => a.id === 2 && a.link === 'introduce.html'), JSON.stringify(migArticles));
+check('迁移：一路所获 honor.html → introduce.html', migArticles.some((a) => a.id === 3 && a.link === 'introduce.html'), JSON.stringify(migArticles));
+
 console.log('\n[1] 初始化与前台');
 let r = await call('/api/articles');
 check('文章列表 200 且含 3 篇种子', r.status === 200 && r.data.articles.length === 3, `got ${r.status} n=${r.data.articles && r.data.articles.length}`);
@@ -335,9 +350,9 @@ check('GET /api/articles/3：恶意 link 被清空', r.status === 200 && r.data.
 db.prepare("UPDATE articles SET link = 'data:text/html;base64,PHNjcmlwdD4=' WHERE id = 3").run();
 r = await call('/api/articles/3');
 check('GET /api/articles/3：data: link 被清空', r.status === 200 && r.data.article.link === '', JSON.stringify(r.data.article));
-db.prepare("UPDATE articles SET link = 'honor.html' WHERE id = 3").run();
+db.prepare("UPDATE articles SET link = 'introduce.html' WHERE id = 3").run();
 r = await call('/api/articles/3');
-check('GET /api/articles/3：正常相对路径 link 保留', r.status === 200 && r.data.article.link === 'honor.html', JSON.stringify(r.data.article));
+check('GET /api/articles/3：正常相对路径 link 保留', r.status === 200 && r.data.article.link === 'introduce.html', JSON.stringify(r.data.article));
 
 // 8.3 公开评论接口不返回 email；后台仍可见
 db.prepare("INSERT INTO comments (article_id, nickname, email, content, ip, created_ms) VALUES (1, 'leak-test', 'secret@reader.com', 'email-leak-check', '1.2.3.4', " + Math.floor(Date.now() / 1000) + ")").run();

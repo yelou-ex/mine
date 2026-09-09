@@ -300,7 +300,8 @@ const SEED_ARTICLES = [
     title: '我的学习之路',
     category: '博客',
     tags: '',
-    link: 'myway.html',
+    // 页面已并入 introduce.html（原 myway.html）
+    link: 'introduce.html',
     created_at: '2023-10-10 00:00:00',
     content:
       '<p>这部分记录了我的部分成长经历。</p>' +
@@ -310,7 +311,8 @@ const SEED_ARTICLES = [
     title: '一路所获',
     category: '博客',
     tags: '',
-    link: 'honor.html',
+    // 页面已并入 introduce.html（原 honor.html）
+    link: 'introduce.html',
     created_at: '2023-10-05 00:00:00',
     content: '<p>这里是一些我曾经获得的荣誉。</p>',
   },
@@ -373,15 +375,16 @@ export async function ensureSchema(env) {
   } catch {
     /* 忽略：部分环境不支持 PRAGMA exec */
   }
-  // 迁移：为旧库补 link 列，并为 3 篇种子文章设置指向原有静态页面的链接
+  // 迁移：为旧库补 link 列，并为 3 篇种子文章设置指向静态页面的链接
   const artCols = await env.DB.prepare('PRAGMA table_info(articles)').all();
   if (!artCols.results.some((c) => c.name === 'link')) {
     await env.DB.prepare("ALTER TABLE articles ADD COLUMN link TEXT NOT NULL DEFAULT ''").run();
   }
   await env.DB.batch([
     env.DB.prepare("UPDATE articles SET link = 'introduce.html' WHERE title = '个人基本信息' AND link = ''"),
-    env.DB.prepare("UPDATE articles SET link = 'myway.html' WHERE title = '我的学习之路' AND link = ''"),
-    env.DB.prepare("UPDATE articles SET link = 'honor.html' WHERE title = '一路所获' AND link = ''"),
+    // 学习之路/一路所获页面已并入 introduce.html（原 myway.html、honor.html 已下线）
+    env.DB.prepare("UPDATE articles SET link = 'introduce.html' WHERE title = '我的学习之路' AND link IN ('', 'myway.html')"),
+    env.DB.prepare("UPDATE articles SET link = 'introduce.html' WHERE title = '一路所获' AND link IN ('', 'honor.html')"),
   ]);
   // 默认管理员（幂等）
   const admin = await env.DB.prepare('SELECT id FROM admins WHERE username = ?').bind(DEFAULT_ADMIN.username).first();
