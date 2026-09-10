@@ -266,8 +266,10 @@ export function buildTocHtml(html) {
   });
   const items = heads.filter((h) => !h.skip);
   if (items.length < 2) return { tocHtml: '', visible: false };
+  // 卡片结构与前端 article.html initToc 一致：头部「目录 + 首页按钮」+ 目录列表
   const tocHtml =
-    '<div class="toc-card"><div class="toc-title">目录</div><nav class="toc-list">' +
+    '<div class="toc-card"><div class="toc-head"><span class="toc-title">目录</span>' +
+    '<a class="toc-home" href="index.html" title="返回首页">首页</a></div><nav class="toc-list">' +
     items.map((h) =>
       `<a class="lvl-${h.tag[1]}" href="#${encodeURIComponent(h.id)}">${escHtmlText(headingText(h.inner))}</a>`
     ).join('') +

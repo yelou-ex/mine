@@ -532,7 +532,7 @@ console.log('\n[10] /article 预渲染（Bing 指引 §8/§9/§13/§21 索引增
   // html 无标题的文章目录保持 hidden
   db.prepare("INSERT INTO articles (id, title, content, category, tags, link, format, created_at) VALUES (93, '预渲染目录', '## 目录\n## Part One\n正文一\n## Part Two\n正文二\n### Sub\n正文三', '博客', '', '', 'markdown', '2023-10-15 00:00:00')").run();
   p = await callPage('/article?id=93');
-  check('目录预渲染：TOC 卡片写入页面源码', p.status === 200 && p.text.includes('toc-card') && p.text.includes('toc-list'), p.text.slice(0, 300));
+  check('目录预渲染：TOC 卡片写入页面源码（含首页按钮）', p.status === 200 && p.text.includes('toc-card') && p.text.includes('toc-list') && p.text.includes('class="toc-home"') && p.text.includes('href="index.html"'), p.text.slice(0, 300));
   check('目录预渲染：href 命中已生成标题 id（ASCII 不编码 / CJK 百分号编码）',
     p.text.includes('href="#part-one"') && p.text.includes('href="#sub"') && p.text.includes('#%E7%9B%AE%E5%BD%95'),
     (p.text.match(/href="#[^"]*"/g) || []).join(' '));

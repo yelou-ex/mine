@@ -65,10 +65,12 @@
         /* 文内目录锚点跳转：平滑滚动 */
         html { scroll-behavior: smooth; }
         /* 双栏布局（PC ≥769px）：文章占满左侧，目录模块为右侧独立卡片；
-           body.has-toc 由前端 initToc / 服务端预渲染在目录可见时添加 */
+           body.has-toc 由前端 initToc / 服务端预渲染在目录可见时添加。
+           目录列 stretch 到整栏高度（align-items:stretch），卡片 sticky 才能在
+           整篇文章翻动过程中始终浮在视口内（顶距 20px） */
         @media (min-width: 769px) {
             body.has-toc .container { max-width: 1160px; }
-            .layout { display: grid; grid-template-columns: minmax(0, 1fr) 232px; gap: 28px; align-items: start; }
+            .layout { display: grid; grid-template-columns: minmax(0, 1fr) 232px; gap: 28px; align-items: stretch; }
             .toc-card {
                 position: sticky; top: 20px;
                 background: #fff; opacity: .95;
@@ -76,7 +78,15 @@
                 padding: 14px 16px;
                 max-height: calc(100vh - 40px); overflow-y: auto;
             }
-            .toc-title { font-size: 15px; font-weight: 600; color: #2c3e50; margin-bottom: 8px; }
+            .toc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+            .toc-title { font-size: 15px; font-weight: 600; color: #2c3e50; }
+            /* 卡片上的「首页」按钮：随时返回首页 */
+            .toc-home {
+                font-size: 12px; color: #3498db; background: #eaf2f8;
+                padding: 3px 10px; border-radius: 4px; text-decoration: none;
+                transition: background-color .2s, color .2s;
+            }
+            .toc-home:hover { background: #3498db; color: #fff; }
             .toc-list a {
                 display: block; padding: 4px 8px; margin: 1px 0;
                 color: #7f8c8d; font-size: 13.5px; line-height: 1.45;
@@ -351,7 +361,8 @@
                 if (entries.length < 2) { hideToc(); return; }
                 tocCol.innerHTML =
                     '<div class="toc-card">' +
-                    '<div class="toc-title">目录</div>' +
+                    '<div class="toc-head"><span class="toc-title">目录</span>' +
+                    '<a class="toc-home" href="index.html" title="返回首页">首页</a></div>' +
                     '<nav class="toc-list" id="tocList">' +
                     entries.map(function (h) {
                         var cls = h.tagName === 'H2' ? 'lvl-2' : (h.tagName === 'H3' ? 'lvl-3' : 'lvl-4');
