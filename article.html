@@ -62,6 +62,8 @@
         }
         .article-body code { font-family: Consolas, monospace; }
         .article-body h1,.article-body h2,.article-body h3,.article-body h4 { color: #2c3e50; margin: 20px 0 10px; }
+        /* 文内目录锚点跳转：平滑滚动 */
+        html { scroll-behavior: smooth; }
         /* 表格（Markdown GFM 表格 / HTML 表格共用） */
         .article-body table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14.5px; }
         .article-body th, .article-body td { border: 1px solid #e3e8ee; padding: 8px 12px; text-align: left; }
@@ -154,6 +156,8 @@
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
     <!-- marked（本地打包）：Markdown 格式文章的源码 → HTML 渲染器；不可用时回退为原文纯文本展示（esc 转义，无 XSS 面） -->
     <script src="js/marked.js"></script>
+    <!-- 标题锚点：为 md 标题追加 GitHub 风格 id（重名 -1/-2），使文内目录 [文字](#标题) 可点击跳转；白名单需放行 id -->
+    <script src="js/heading-ids.js"></script>
     <script>
         // 文章详情：从后端 API 加载；渲染前做前端白名单二次过滤（防 XSS 第二道防线）
         (function () {
@@ -204,6 +208,8 @@
                     Array.prototype.slice.call(el.attributes).forEach(function (attr) {
                         var name = attr.name.toLowerCase();
                         var keep = allowed.indexOf(name) !== -1;
+                        // 标题锚点 id（目录跳转）：全标签放行，但值限定严格字符集，防畸形/注入
+                        if (!keep && name === 'id' && /^[\p{L}\p{N}\-_.]+$/u.test(attr.value)) keep = true;
                         if (keep && (name === 'href' || name === 'src') && !isSafeUri(attr.value)) keep = false;
                         if (!keep) el.removeAttribute(attr.name);
                     });
@@ -216,17 +222,21 @@
                 if (window.DOMPurify) {
                     return window.DOMPurify.sanitize(String(html == null ? '' : html), {
                         ALLOWED_TAGS: ALLOWED_TAGS,
-                        ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'src', 'alt', 'colspan', 'rowspan'],
+                        // id：标题锚点（目录跳转）；锚点目标由 js/heading-ids.js 生成、字符集受限
+                        ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'src', 'alt', 'colspan', 'rowspan', 'id'],
                     });
                 }
                 return safeRenderLocal(html);
             }
 
-            // Markdown 渲染：marked（CDN）转 HTML 后仍走 safeRender 白名单过滤（二次防线）；
-            // CDN 不可用时回退为 esc 转义后的纯文本展示（可读、无 XSS 面）
+            // Markdown 渲染：marked 转 HTML，为标题追加 GitHub 风格锚点 id（文内目录 [文字](#标题)
+            // 点击可跳转；重名自动 -1/-2），随后仍走 safeRender 白名单过滤（二次防线）；
+            // 渲染器不可用时回退为 esc 转义后的纯文本展示（可读、无 XSS 面）
             function renderMarkdown(md) {
                 if (window.marked && typeof window.marked.parse === 'function') {
-                    return safeRender(window.marked.parse(String(md == null ? '' : md)));
+                    var rendered = window.marked.parse(String(md == null ? '' : md));
+                    if (typeof addHeadingIds === 'function') rendered = addHeadingIds(rendered);
+                    return safeRender(rendered);
                 }
                 return '<div class="md-fallback">' + esc(md) + '</div>';
             }

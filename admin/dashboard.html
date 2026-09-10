@@ -255,6 +255,7 @@
     </style>
     <!-- 内容预览：marked（本地打包，Markdown → HTML）+ DOMPurify（CDN；预览 HTML 白名单过滤，防上传 md / HTML 内容在管理员会话内执行脚本；不可用时预览降级为转义纯文本） -->
     <script src="../js/marked.js"></script>
+    <script src="../js/heading-ids.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 </head>
 <body>
@@ -346,7 +347,7 @@
                     <label for="f-format">内容格式 <span class="req">*</span></label>
                     <select id="f-format">
                         <option value="html">HTML 富文本（默认，支持 &lt;table&gt; 表格等标签）</option>
-                        <option value="markdown">Markdown（支持 # 标题 / 列表 / 代码块 / 表格 | a | b | / 链接等语法）</option>
+                        <option value="markdown">Markdown（支持 # 标题 / 列表 / 代码块 / 表格 | a | b | / 链接等语法；标题自动生成锚点，可作文内目录）</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -760,7 +761,7 @@
             }
             function updateContentPlaceholder() {
                 $('f-content').placeholder = currentFormat() === 'markdown'
-                    ? 'Markdown 源码：# 标题、- 列表、| 表格 |、`代码`、[链接](url)、![图片](url)（≤ 50,000 字符）'
+                    ? 'Markdown 源码：# 标题（自动生成锚点，可用 [文字](#标题) 作文内目录跳转）、- 列表、| 表格 |、`代码`、[链接](url)、![图片](url)（≤ 50,000 字符）'
                     : '支持基本的 HTML 排版：段落、加粗、列表、链接、图片、表格（<table><tr><th>…）等（≤ 50,000 字符）';
             }
             // 预览渲染：markdown 用 marked 转 HTML；结果统一经 DOMPurify 白名单过滤再展示，
@@ -770,7 +771,13 @@
                 var src = $('f-content').value;
                 var html;
                 if (currentFormat() === 'markdown') {
-                    html = (window.marked && typeof window.marked.parse === 'function') ? window.marked.parse(src) : null;
+                    if (window.marked && typeof window.marked.parse === 'function') {
+                        html = window.marked.parse(src);
+                        // 标题锚点（目录跳转）：与文章页同规则生成 id，预览即所见
+                        if (typeof addHeadingIds === 'function') html = addHeadingIds(html);
+                    } else {
+                        html = null;
+                    }
                 } else {
                     html = src;
                 }
@@ -781,7 +788,8 @@
                             'ul', 'ol', 'li', 'a', 'img', 'span', 'div', 'hr',
                             'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'code', 'pre',
                             'table', 'thead', 'tbody', 'tr', 'th', 'td', 'caption'],
-                        ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'src', 'alt', 'colspan', 'rowspan'],
+                        // id：标题锚点（目录跳转）
+                        ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'src', 'alt', 'colspan', 'rowspan', 'id'],
                     });
                 } else {
                     box.innerHTML = '<div class="md-fallback">' + esc(html != null ? html : src) + '</div>';

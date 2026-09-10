@@ -13,7 +13,7 @@
  * D1 异常时降级回静态壳（context.next()），不阻断页面浏览。
  */
 import { marked } from 'marked';
-import { ensureSchema, sanitizeHtml, mdToPlainText } from './_lib.mjs';
+import { ensureSchema, sanitizeHtml, mdToPlainText, addHeadingIds } from './_lib.mjs';
 
 const SITE = 'yelou的个人博客';
 
@@ -88,9 +88,10 @@ export async function onRequest(context) {
     }
     const shell = await base.text();
 
-    // 正文：markdown → marked 转 HTML；两者统一再过服务端白名单（含表格标签），防 XSS 载荷入库残留
+    // 正文：markdown → marked 转 HTML + 标题锚点 id（文内目录跳转，与前端 js/heading-ids.js 同规则）；
+    // 两者统一再过服务端白名单（含表格标签），防 XSS 载荷入库残留
     const bodyHtml = row.format === 'markdown'
-      ? sanitizeHtml(String(marked.parse(String(row.content || ''))))
+      ? sanitizeHtml(addHeadingIds(String(marked.parse(String(row.content || '')))))
       : sanitizeHtml(String(row.content || ''));
     const desc = (row.format === 'markdown' ? mdToPlainText(row.content, 80) : htmlToText(row.content, 80))
       + ' - ' + SITE;

@@ -174,6 +174,56 @@ const ALLOWED_ATTRS = {
   th: new Set(['colspan', 'rowspan']),
   td: new Set(['colspan', 'rowspan']),
 };
+// 标题锚点 id 合法字符集：Unicode 字母（含中文）/ 数字 / - _ .
+const HEADING_ID_PATTERN = /^[\p{L}\p{N}\-_.]+$/u;
+
+/* ================= 标题锚点（Markdown 目录跳转） ================= */
+// ⚠ 同步约定：与浏览器版 js/heading-ids.js 行为保持一致，修改 slug 规则时两处同步更新。
+// marked v5+ 默认不再为标题生成 id，md 文内目录链接 [文字](#标题) 无锚点可跳；
+// 渲染后为 <h1>~<h6> 追加 GitHub 风格 id（重名自动 -1/-2），并放行 id 属性过白名单。
+
+/** 从标题 HTML 片段/纯文本生成 GitHub 风格 slug（小写、保留中英文数字 -_.、空格转连字符） */
+export function headingSlug(raw) {
+  let s = String(raw == null ? '' : raw);
+  s = s.replace(/<[^>]*>/g, '');
+  s = s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => {
+      try { return String.fromCodePoint(parseInt(h, 16)); } catch { return ''; }
+    })
+    .replace(/&#(\d+);/g, (_, d) => {
+      try { return String.fromCodePoint(parseInt(d, 10)); } catch { return ''; }
+    })
+    .replace(/&amp;/g, '&'); // 最后解码 &amp;（防 &amp;lt; 误判）
+  s = s.trim().toLowerCase();
+  s = s.replace(/[^\p{L}\p{N}\- _]/gu, ''); // 其余标点/符号（含 . ? 等）一律去掉，与 GitHub 规则一致
+  s = s.replace(/\s+/g, '-');
+  s = s.replace(/-{2,}/g, '-');
+  s = s.replace(/^-+|-+$/g, '');
+  return s;
+}
+
+/** 为 HTML 中的 <h1>~<h6> 追加 id（重名 -1/-2）；空 slug 的标题原样保留 */
+export function addHeadingIds(html) {
+  const used = {};
+  return String(html == null ? '' : html).replace(
+    /<(h[1-6])(\s[^>]*)?>([\s\S]*?)<\/\1>/gi,
+    (m, tag, _attrs, inner) => {
+      const base = headingSlug(inner);
+      if (!base) return m;
+      let id;
+      if (Object.prototype.hasOwnProperty.call(used, base)) {
+        used[base] += 1;
+        id = `${base}-${used[base]}`;
+      } else {
+        used[base] = 0;
+        id = base;
+      }
+      if (!HEADING_ID_PATTERN.test(id)) return m; // 双保险
+      return `<${tag} id="${id}">${inner}</${tag}>`;
+    }
+  );
+}
 
 function escapeAttr(v) {
   return String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -199,7 +249,10 @@ export function sanitizeHtml(input) {
       const val = m[3] !== undefined ? m[3] : m[4] !== undefined ? m[4] : m[5] || '';
       if (name.startsWith('on')) continue; // 事件属性
       if (name === 'style') continue;
-      if (!allowed.has(name)) continue;
+      if (name === 'id') {
+        // 标题锚点 id（Markdown 目录跳转）：全标签放行，但值限定严格字符集，防畸形/注入
+        if (!HEADING_ID_PATTERN.test(val)) continue;
+      } else if (!allowed.has(name)) continue;
       const lv = val.trim().toLowerCase();
       // 拦截 javascript:/data: 危险协议；其余（http/https/相对路径/锚点等）保留
       if ((name === 'href' || name === 'src') && (lv.startsWith('javascript:') || lv.startsWith('data:'))) continue;

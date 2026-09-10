@@ -57,7 +57,8 @@ const SANITIZE_OPTIONS = {
     img: ['src', 'alt', 'title'],
     th: ['colspan', 'rowspan'],
     td: ['colspan', 'rowspan'],
-    '*': ['class'],
+    // class 全标签；id：标题锚点（Markdown 目录跳转，js/heading-ids.js 生成、字符集受限）
+    '*': ['class', 'id'],
   },
   allowedSchemes: ['http', 'https', 'mailto'],
   allowedSchemesByTag: { img: ['http', 'https'] },
