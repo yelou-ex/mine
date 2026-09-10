@@ -607,6 +607,57 @@ console.log('\n[11] IndexNow + updated_at（新文章即时通知 / sitemap 新�
   }
 }
 
+console.log('\n[12] 敏感文件兜底拦截（安全审计 22c0d741：Pages 静态部署不得泄露开发/测试源码）');
+{
+  // 兜底函数（Functions 层）与黑名单规则（_lib.mjs 共享）分别导入
+  const { onRequest: sensitiveFn } = await import('./functions/[[...sensitive]].js');
+  const { isSensitivePath, ensureSchema: es12, verifyPassword } = await import('./functions/_lib.mjs');
+
+  // 模拟 context.next()：记录透传次数，返回“静态资产”响应
+  let nextCalls = 0;
+  const mockCtx = (path) => ({
+    request: new Request('https://test.local' + path, { headers: new Headers() }),
+    env: { DB: new MockDB(db) },
+    params: {},
+    next: async () => { nextCalls += 1; return new Response('STATIC', { status: 200 }); },
+  });
+
+  // 敏感路径 → 403，且不落入静态服务（next 不被调用）
+  const before = nextCalls;
+  for (const p of [
+    '/server.js', '/db.js', '/workers-server.js', '/package.json', '/wrangler.toml',
+    '/test-functions.mjs', '/test-e2e.mjs', '/test-mobile-api.html',
+    '/DEPLOY-GUIDE.md', '/init-d1.sql', '/data/website.db',
+    '/node_modules/express/package.json', '/.git/config', '/functions/_lib.mjs',
+  ]) {
+    const r = await sensitiveFn(mockCtx(p));
+    check(`敏感 ${p} → 403`, r.status === 403, `got ${r.status}`);
+  }
+  check('敏感路径不透传静态（next 未被调用）', nextCalls === before, `next 调用 ${nextCalls - before} 次`);
+  check('编码路径 %2e%2e%2fserver.js 解码后命中黑名单', isSensitivePath('%2e%2e%2fserver.js'), '解码规则');
+
+  // 正常路径 → 透传静态（零行为变化）
+  for (const p of ['/index.html', '/js/marked.js', '/js/heading-ids.js', '/picture/a.png', '/admin/login.html', '/favicon.ico', '/robots.txt', '/BingSiteAuth.xml', '/api/login']) {
+    const r = await sensitiveFn(mockCtx(p));
+    const body = await r.text();
+    check(`正常 ${p} → 透传静态`, r.status === 200 && body === 'STATIC', `got ${r.status} ${body}`);
+  }
+
+  // DEFAULT_ADMIN 环境变量注入（新库种子使用 env 凭据）
+  const db2 = new Database(':memory:');
+  const env2 = { DB: new MockDB(db2), DEFAULT_ADMIN_USERNAME: 'boss', DEFAULT_ADMIN_PASSWORD: 'str0ng-pass' };
+  await es12(env2);
+  const adminRow = db2.prepare('SELECT username, password_hash FROM admins LIMIT 1').get();
+  check('新库种子管理员用户名取环境变量', adminRow && adminRow.username === 'boss', JSON.stringify(adminRow));
+  check('新库种子密码哈希可用环境变量密码验证', adminRow && await verifyPassword('str0ng-pass', adminRow.password_hash));
+  // 未配置 env 时回退内置默认值（本地开发可用）
+  const db3 = new Database(':memory:');
+  await es12({ DB: new MockDB(db3) });
+  const adminRow3 = db3.prepare('SELECT username FROM admins LIMIT 1').get();
+  check('未配置 env 回退内置默认 admin', adminRow3 && adminRow3.username === 'admin', JSON.stringify(adminRow3));
+  db2.close(); db3.close();
+}
+
 console.log(`\n========================================`);
 console.log(`通过 ${passed} 项 / 失败 ${failed} 项`);
 console.log(`========================================`);

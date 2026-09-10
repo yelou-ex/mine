@@ -26,7 +26,18 @@ export const EMAIL_PATTERN = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 export const COMMENT_DUP_WINDOW_MS = 60 * 1000; // 同 IP + 同文章 + 同内容 60 秒防重复
 export const COMMENT_HOUR_LIMIT = 10;           // 同 IP 每小时最多 10 条
 export const PBKDF2_ITERATIONS = 60000; // 免费版 Workers CPU 限制下取 6 万次
+// 默认管理员（仅全新库首次种子使用；已存在的 admins 行不受影响）
 export const DEFAULT_ADMIN = { username: 'admin', password: 'admin123' };
+/**
+ * 默认管理员凭据（审计 22c0d741 加固）：生产环境建议通过 Pages 环境变量
+ * DEFAULT_ADMIN_USERNAME / DEFAULT_ADMIN_PASSWORD 注入强密码，避免内置默认值
+ * 降低暴力破解成本；未配置时回退到内置开发默认值（保证本地/新库可用）。
+ */
+function resolveDefaultAdmin(env) {
+  const username = String((env && env.DEFAULT_ADMIN_USERNAME) || '').trim() || DEFAULT_ADMIN.username;
+  const password = String((env && env.DEFAULT_ADMIN_PASSWORD) || '').trim() || DEFAULT_ADMIN.password;
+  return { username, password };
+}
 
 /* ================= 基础工具 ================= */
 export function json(data, status = 200) {
@@ -339,6 +350,45 @@ export function sanitizeLink(input) {
   return s;
 }
 
+/* ================= 敏感文件拦截（安全审计 22c0d741） ================= */
+// 背景：Pages 把整个仓库根目录作为静态资源部署，开发/测试源码（server.js、db.js、
+// test-*.mjs、package.json、部署文档等）可被未授权下载。functions/[[...sensitive]].js
+// 在静态服务前拦截这些路径（403）。
+// ⚠ 同步约定：本地 Express（server.js 的 BLOCKED_FILES/BLOCKED_DIRS + 前缀/扩展名规则）
+// 与下方规则必须保持一致，新增敏感文件时两处同步更新。
+
+const SENSITIVE_FILES = new Set([
+  // 后端 / 生成器源码
+  'server.js', 'db.js', 'workers-server.js',
+  'admin-article.gen.docx.js', 'docx-skill.js', 'export-sqlite.js', 'migrate-db.js',
+  // 测试文件（本地 test-*.mjs / 测试页）
+  'test-api.js', 'test-comments.mjs', 'test-e2e.mjs', 'test-functions.mjs',
+  'test-xss-fixes.mjs', 'test-toc-anchors.mjs', 'test-mobile-api.html',
+  // 配置 / 清单 / 锁文件 / 密钥
+  'package.json', 'package-lock.json', 'wrangler.toml',
+  '.gitignore', '.npmrc', '.env', '.session-secret',
+  // 数据库 / 迁移脚本
+  'init-d1.sql', 'website.db',
+]);
+const SENSITIVE_DIRS = new Set(['node_modules', '.git', 'data', '.npm-cache', 'functions']);
+const SENSITIVE_FILE_PREFIX = ['test-']; // 前缀兜底：未来新增 test-* 文件自动拦截
+const SENSITIVE_FILE_EXT = ['.md', '.sql', '.db', '.sqlite', '.docx', '.log', '.toml']; // 站点运行不需要这些扩展名的资源
+
+/** 路径是否命中敏感文件/目录黑名单（供 Pages 兑底函数与测试使用） */
+export function isSensitivePath(pathname) {
+  let p = String(pathname || '');
+  try { p = decodeURIComponent(p); } catch { /* 解码失败按原路径处理 */ }
+  p = p.replace(/\\/g, '/');
+  const segs = p.split('/').filter(Boolean);
+  if (!segs.length) return false; // 根路径 / 不拦截
+  if (segs.some((s) => SENSITIVE_DIRS.has(s))) return true; // 敏感目录（含任意层级）
+  const last = segs[segs.length - 1].toLowerCase();
+  if (SENSITIVE_FILES.has(last)) return true;
+  if (SENSITIVE_FILE_PREFIX.some((pre) => last.startsWith(pre))) return true;
+  if (SENSITIVE_FILE_EXT.some((ext) => last.endsWith(ext))) return true;
+  return false;
+}
+
 /* ================= 文章字段校验（与 Express 版规则一致） ================= */
 /* ================= 文章字段校验（与 Express 版规则一致） ================= */
 // Markdown 源码 → 纯文本摘要（用于列表页摘要：去掉 md 语法符号，保留正文文字）
@@ -540,12 +590,13 @@ export async function ensureSchema(env) {
     ]);
     await env.DB.prepare("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('merged_aboutme', '1')").run();
   }
-  // 默认管理员（幂等）
-  const admin = await env.DB.prepare('SELECT id FROM admins WHERE username = ?').bind(DEFAULT_ADMIN.username).first();
+  // 默认管理员（幂等；凭据优先取环境变量，见 resolveDefaultAdmin）
+  const adminCred = resolveDefaultAdmin(env);
+  const admin = await env.DB.prepare('SELECT id FROM admins WHERE username = ?').bind(adminCred.username).first();
   if (!admin) {
-    const hash = await hashPassword(DEFAULT_ADMIN.password);
+    const hash = await hashPassword(adminCred.password);
     await env.DB.prepare('INSERT INTO admins (username, password_hash) VALUES (?, ?)')
-      .bind(DEFAULT_ADMIN.username, hash)
+      .bind(adminCred.username, hash)
       .run();
   }
   // 种子文章：仅首次（seeded 标记不存在时）且文章表为空时插入，删光后不复活

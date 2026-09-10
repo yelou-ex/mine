@@ -61,14 +61,20 @@ async function run() {
   r = await api('/api/csrf-token');
   check('未登录获取 CSRF → 401', r.status === 401, `got ${r.status}`);
 
-  /* ---------- 敏感文件保护 ---------- */
+  /* ---------- 敏感文件保护（清单与 functions/_lib.mjs isSensitivePath 同步，审计 22c0d741） ---------- */
   console.log('\n[3] 敏感文件保护');
-  for (const p of ['/server.js', '/db.js', '/data/website.db', '/package.json', '/node_modules/express/package.json', '/.git/config']) {
+  for (const p of [
+    '/server.js', '/db.js', '/data/website.db', '/package.json', '/node_modules/express/package.json', '/.git/config',
+    '/test-functions.mjs', '/wrangler.toml', '/DEPLOY-GUIDE.md', '/functions/_lib.mjs',
+    '/test-mobile-api.html', '/workers-server.js', '/init-d1.sql',
+  ]) {
     r = await api(p);
     check(`${p} → 403`, r.status === 403, `got ${r.status}`);
   }
-  r = await api('/script.js');
-  check('script.js 正常 200', r.status === 200, `got ${r.status}`);
+  for (const p of ['/script.js', '/index.html', '/js/marked.js', '/admin/login.html', '/BingSiteAuth.xml']) {
+    r = await api(p);
+    check(`${p} 正常 200`, r.status === 200, `got ${r.status}`);
+  }
 
   /* ---------- 登录（AC-01/02/03） ---------- */
   console.log('\n[4] 登录流程');

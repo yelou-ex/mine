@@ -307,13 +307,25 @@ app.use('/admin', (req, res, next) => {
   return res.redirect(`/admin/login.html?next=${nextUrl}`);
 });
 
-// 静态资源白名单：拒绝源码 / 数据库 / 配置文件被下载（安全要求）
+// 静态资源白名单：拒绝源码 / 数据库 / 配置文件被下载（安全要求，审计 22c0d741）
+// ⚠ 同步约定：与 functions/_lib.mjs isSensitivePath（Pages 兜底拦截）规则保持一致
 const BLOCKED_FILES = new Set([
-  'server.js', 'db.js', 'package.json', 'package-lock.json',
-  'admin-article.gen.docx.js', 'docx-skill.js', '111',
-  '.session-secret', 'website.db',
+  // 后端 / 生成器源码
+  'server.js', 'db.js', 'workers-server.js',
+  'admin-article.gen.docx.js', 'docx-skill.js', 'export-sqlite.js', 'migrate-db.js',
+  // 测试文件
+  'test-api.js', 'test-comments.mjs', 'test-e2e.mjs', 'test-functions.mjs',
+  'test-xss-fixes.mjs', 'test-toc-anchors.mjs', 'test-mobile-api.html',
+  // 配置 / 清单 / 锁文件 / 密钥
+  'package.json', 'package-lock.json', 'wrangler.toml',
+  '.gitignore', '.npmrc', '.env', '.session-secret',
+  // 数据库 / 迁移脚本
+  'init-d1.sql', 'website.db', '111',
 ]);
-const BLOCKED_DIRS = new Set(['node_modules', '.git', 'data']);
+const BLOCKED_DIRS = new Set(['node_modules', '.git', 'data', '.npm-cache', 'functions']);
+// 前缀 / 扩展名兜底（站点运行不需要的开发产物，任意层级命中即拦截）
+const BLOCKED_FILE_PREFIX = ['test-'];
+const BLOCKED_FILE_EXT = ['.md', '.sql', '.db', '.sqlite', '.docx', '.log', '.toml'];
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next();
   let urlPath = req.path;
@@ -324,8 +336,11 @@ app.use((req, res, next) => {
   }
   const segs = urlPath.split('/').filter(Boolean);
   if (segs.length) {
-    if (BLOCKED_DIRS.has(segs[0])) return res.status(403).end();
-    if (BLOCKED_FILES.has(segs[segs.length - 1])) return res.status(403).end();
+    if (segs.some((s) => BLOCKED_DIRS.has(s))) return res.status(403).end();
+    const last = segs[segs.length - 1].toLowerCase();
+    if (BLOCKED_FILES.has(last)
+      || BLOCKED_FILE_PREFIX.some((p) => last.startsWith(p))
+      || BLOCKED_FILE_EXT.some((e) => last.endsWith(e))) return res.status(403).end();
   }
   next();
 });
