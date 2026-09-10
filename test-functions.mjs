@@ -106,6 +106,7 @@ function check(name, cond, extra = '') {
 }
 
 // /article 预渲染函数（functions/article.js）的请求模拟：context.next() 返回静态壳
+// 结构与 article.html 一致（含双栏 layout + 目录模块 aside；articleWrap 保持折叠空 div）
 function pageShell() {
   return '<html><head>' +
     '<title>文章详情 - yelou的个人博客</title>' +
@@ -113,7 +114,11 @@ function pageShell() {
     '<meta property="og:title" content="文章详情 - yelou的个人博客">' +
     '<meta property="og:description" content="杨楼的个人博客文章页：学习笔记与生活感悟。">' +
     '<meta property="og:url" content="https://yelou.pages.dev/article">' +
-    '</head><body><div id="articleWrap"></div></body></html>';
+    '</head><body><div class="container main-wrap"><div class="layout"><div class="article-col">' +
+    '<div id="articleWrap"></div>' +
+    '<div id="commentWrap"></div></div>' +
+    '<aside class="toc-col" id="tocCol" hidden></aside>' +
+    '</div></div></body></html>';
 }
 async function callPage(path) {
   const request = new Request('https://test.local' + path, { headers: new Headers() });
@@ -523,7 +528,40 @@ console.log('\n[10] /article 预渲染（Bing 指引 §8/§9/§13/§21 索引增
   p = await callPage('/article?id=91');
   check('html 预渲染保留正文并剥离 script', p.status === 200 && p.text.includes('<p>ok</p>') && !/<script/i.test(p.text), p.text.slice(0, 300));
 
-  db.prepare("DELETE FROM articles WHERE id IN (90, 91, 92)").run();
+  // 目录模块预渲染（PC 右上独立卡片）：markdown ≥2 个 h2~h4 时生成 TOC 且 body.has-toc；
+  // html 无标题的文章目录保持 hidden
+  db.prepare("INSERT INTO articles (id, title, content, category, tags, link, format, created_at) VALUES (93, '预渲染目录', '## 目录\n## Part One\n正文一\n## Part Two\n正文二\n### Sub\n正文三', '博客', '', '', 'markdown', '2023-10-15 00:00:00')").run();
+  p = await callPage('/article?id=93');
+  check('目录预渲染：TOC 卡片写入页面源码', p.status === 200 && p.text.includes('toc-card') && p.text.includes('toc-list'), p.text.slice(0, 300));
+  check('目录预渲染：href 命中已生成标题 id（ASCII 不编码 / CJK 百分号编码）',
+    p.text.includes('href="#part-one"') && p.text.includes('href="#sub"') && p.text.includes('#%E7%9B%AE%E5%BD%95'),
+    (p.text.match(/href="#[^"]*"/g) || []).join(' '));
+  check('目录预渲染：body 带 has-toc（双栏布局生效）', /<body class="has-toc">/.test(p.text), (p.text.match(/<body[^>]*>/) || [])[0]);
+  check('目录预渲染：aside 不再 hidden', p.text.includes('<aside class="toc-col" id="tocCol">'), '');
+
+  const p92 = await callPage('/article?id=92');
+  check('无标题文章：目录保持 hidden', p92.text.includes('<aside class="toc-col" id="tocCol" hidden></aside>') && !/<body class="has-toc">/.test(p92.text), '');
+
+  // 注入点回归：用真实 article.html 壳走一遍预渲染（防止前端壳改动后 functions/article.js 的
+  // 字面量 replace 失配而静默 no-op——此前该缺陷曾导致线上预渲染从未生效）
+  {
+    const realShell = (await import('node:fs')).readFileSync('./article.html', 'utf8');
+    const request = new Request('https://test.local/article?id=93', { headers: new Headers() });
+    const context = {
+      request,
+      env: { DB: new MockDB(db), SESSION_SECRET: 'test-secret' },
+      params: {},
+      next: async () => new Response(realShell, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }),
+    };
+    const rp = await articleOnRequest(context);
+    const rt = await rp.text();
+    check('真实壳预渲染：注入点全部命中（正文 + 目录 + has-toc）',
+      rp.status === 200 && rt.includes('data-prerendered="1"') && rt.includes('toc-card') && /<body class="has-toc">/.test(rt),
+      rt.slice(0, 200));
+    check('真实壳预渲染：标题 id 已生成（目录锚点可跳）', rt.includes('<h2 id="part-one">') && rt.includes('<h3 id="sub">'), '');
+  }
+
+  db.prepare("DELETE FROM articles WHERE id IN (90, 91, 92, 93)").run();
 }
 
 console.log('\n[11] IndexNow + updated_at（新文章即时通知 / sitemap 新鲜度信号）');

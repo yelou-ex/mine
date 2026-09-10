@@ -225,6 +225,56 @@ export function addHeadingIds(html) {
   );
 }
 
+/** 标题 HTML 片段 → 纯文本（目录条目文字用） */
+function headingText(inner) {
+  return String(inner == null ? '' : inner)
+    .replace(/<[^>]*>/g, '')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'").replace(/&amp;/g, '&').trim();
+}
+
+function escHtmlText(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/**
+ * 目录模块 HTML（PC 右侧独立卡片；与前端 article.html initToc 规则一致）：
+ * 取 h2~h4，≥2 个才生成；已有 id 沿用，无 id 按 heading-ids 规则补生成（重名 -1/-2）。
+ * ⚠ 同步约定：前端 article.html 的 initToc 需与此处行为保持一致。
+ * 返回 { tocHtml, visible }。
+ */
+export function buildTocHtml(html) {
+  const heads = [];
+  const re = /<(h[2-4])(\s[^>]*)?>([\s\S]*?)<\/\1>/g;
+  let m;
+  while ((m = re.exec(String(html == null ? '' : html)))) {
+    const idm = / id="([^"]*)"/.exec(m[2] || '');
+    heads.push({ tag: m[1], id: idm ? idm[1] : '', inner: m[3] });
+  }
+  const used = {};
+  heads.forEach((h) => { if (h.id) used[h.id] = 1; });
+  heads.forEach((h) => {
+    if (h.id) return;
+    const base = headingSlug(headingText(h.inner));
+    if (!base) { h.skip = 1; return; }
+    let n = 0, id = base;
+    while (used[id]) { n += 1; id = `${base}-${n}`; }
+    used[id] = 1;
+    h.id = id;
+  });
+  const items = heads.filter((h) => !h.skip);
+  if (items.length < 2) return { tocHtml: '', visible: false };
+  const tocHtml =
+    '<div class="toc-card"><div class="toc-title">目录</div><nav class="toc-list">' +
+    items.map((h) =>
+      `<a class="lvl-${h.tag[1]}" href="#${encodeURIComponent(h.id)}">${escHtmlText(headingText(h.inner))}</a>`
+    ).join('') +
+    '</nav></div>';
+  return { tocHtml, visible: true };
+}
+
 function escapeAttr(v) {
   return String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import createDomPurify from 'dompurify';
 import { marked } from 'marked';
-import { addHeadingIds, headingSlug, sanitizeHtml } from './functions/_lib.mjs';
+import { addHeadingIds, headingSlug, sanitizeHtml, buildTocHtml } from './functions/_lib.mjs';
 
 const md = [
   '# 教程指南',
@@ -111,6 +111,32 @@ console.log('5) 浏览器端管线（js/marked.js UMD + js/heading-ids.js + DOMP
     const href = doc.querySelector('li a').getAttribute('href');
     const target = doc.getElementById(decodeURIComponent(href.slice(1)));
     assert.ok(target && target.tagName === 'H2', '目标 ' + target);
+  });
+}
+
+console.log('6) buildTocHtml（PC 目录模块预渲染，与前端 initToc 同规则）');
+{
+  const md6 = addHeadingIds(marked.parse('## 目录\n## Part One\n正文一\n## Part Two\n正文二\n### Sub\n正文三'));
+  const toc6 = buildTocHtml(md6);
+  check('≥2 个 h2~h4 → 生成 TOC', () => assert.equal(toc6.visible, true));
+  check('条目含 h2/h3 层级 class', () => {
+    assert.match(toc6.tocHtml, /class="lvl-2"/);
+    assert.match(toc6.tocHtml, /class="lvl-3"/);
+  });
+  check('href 指向已生成 id（CJK 百分号编码）', () => {
+    assert.match(toc6.tocHtml, /href="#%E7%9B%AE%E5%BD%95"/); // 目录
+    assert.match(toc6.tocHtml, /href="#sub"/);
+  });
+  check('html 文章无 id 标题 → 补生成（与前端一致）', () => {
+    const t = buildTocHtml('<h2>One</h2><h2>One</h2><h3>Two</h3>');
+    assert.equal(t.visible, true);
+    assert.match(t.tocHtml, /href="#one"/);
+    assert.match(t.tocHtml, /href="#one-1"/);
+    assert.match(t.tocHtml, /href="#two"/);
+  });
+  check('<2 个标题 → 不生成（目录隐藏）', () => {
+    assert.equal(buildTocHtml('<h2>Only</h2>').visible, false);
+    assert.equal(buildTocHtml('<p>无标题</p>').visible, false);
   });
 }
 

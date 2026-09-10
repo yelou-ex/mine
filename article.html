@@ -64,6 +64,35 @@
         .article-body h1,.article-body h2,.article-body h3,.article-body h4 { color: #2c3e50; margin: 20px 0 10px; }
         /* 文内目录锚点跳转：平滑滚动 */
         html { scroll-behavior: smooth; }
+        /* 双栏布局（PC ≥769px）：文章占满左侧，目录模块为右侧独立卡片；
+           body.has-toc 由前端 initToc / 服务端预渲染在目录可见时添加 */
+        @media (min-width: 769px) {
+            body.has-toc .container { max-width: 1160px; }
+            .layout { display: grid; grid-template-columns: minmax(0, 1fr) 232px; gap: 28px; align-items: start; }
+            .toc-card {
+                position: sticky; top: 20px;
+                background: #fff; opacity: .95;
+                border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,.1);
+                padding: 14px 16px;
+                max-height: calc(100vh - 40px); overflow-y: auto;
+            }
+            .toc-title { font-size: 15px; font-weight: 600; color: #2c3e50; margin-bottom: 8px; }
+            .toc-list a {
+                display: block; padding: 4px 8px; margin: 1px 0;
+                color: #7f8c8d; font-size: 13.5px; line-height: 1.45;
+                border-left: 2px solid transparent; border-radius: 0 4px 4px 0;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                transition: color .2s, border-color .2s, background-color .2s;
+            }
+            .toc-list a:hover { color: #2980b9; }
+            .toc-list a.lvl-3 { padding-left: 22px; font-size: 12.5px; }
+            .toc-list a.lvl-4 { padding-left: 36px; font-size: 12px; }
+            .toc-list a.active { color: #3498db; border-left-color: #3498db; background: #f4f8fb; }
+        }
+        /* 移动端（≤768px）：不展示目录模块，单栏居中 */
+        @media (max-width: 768px) {
+            .toc-col { display: none; }
+        }
         /* 表格（Markdown GFM 表格 / HTML 表格共用） */
         .article-body table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14.5px; }
         .article-body th, .article-body td { border: 1px solid #e3e8ee; padding: 8px 12px; text-align: left; }
@@ -137,10 +166,15 @@
     </header>
 
     <div class="container main-wrap">
-        <div id="articleWrap">
-            <div class="post-tip">文章加载中…</div>
+        <!-- PC 双栏：文章占左，目录模块（独立卡片）置右上；≤768px 隐藏目录回到单栏。
+             articleWrap 保持折叠空 div：functions/article.js 预渲染注入点依赖该字面量 -->
+        <div class="layout" id="layout">
+            <div class="article-col">
+                <div id="articleWrap"></div>
+                <div id="commentWrap"></div>
+            </div>
+            <aside class="toc-col" id="tocCol" hidden></aside>
         </div>
-        <div id="commentWrap"></div>
         <div class="back-bar"><a href="index.html">← 返回首页</a></div>
     </div>
 
@@ -266,9 +300,76 @@
             function fmtDate(s) {
                 return String(s || '').replace('T', ' ').slice(0, 16);
             }
+            /* ---------- 目录模块（PC 右上独立卡片，文章占满左侧；规则见 CSS 与 _lib.mjs buildTocHtml） ---------- */
+            var tocScrollFn = null; // scroll-spy 监听（重建目录时先解绑旧监听）
+            function hideToc() {
+                var tocCol = document.getElementById('tocCol');
+                if (tocCol) { tocCol.hidden = true; tocCol.innerHTML = ''; }
+                document.body.classList.remove('has-toc');
+                if (tocScrollFn) { window.removeEventListener('scroll', tocScrollFn); tocScrollFn = null; }
+            }
+            function initTocSpy(heads) {
+                var links = Array.prototype.slice.call(document.querySelectorAll('#tocList a'));
+                if (!links.length) return;
+                var ticking = false;
+                function update() {
+                    ticking = false;
+                    var line = window.scrollY + 96; // 视口顶部 + 页头余量
+                    var active = -1;
+                    for (var i = 0; i < heads.length; i++) {
+                        if (heads[i].getBoundingClientRect().top + window.scrollY <= line) active = i; else break;
+                    }
+                    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) active = heads.length - 1; // 页底高亮末项
+                    links.forEach(function (a, i) { a.classList.toggle('active', i === active); });
+                }
+                if (tocScrollFn) window.removeEventListener('scroll', tocScrollFn);
+                tocScrollFn = function () {
+                    if (!ticking) { ticking = true; window.requestAnimationFrame(update); }
+                };
+                window.addEventListener('scroll', tocScrollFn, { passive: true });
+                update();
+            }
+            function initToc() {
+                var tocCol = document.getElementById('tocCol');
+                if (!tocCol) return;
+                var body = document.querySelector('#articleWrap .article-body');
+                var heads = body ? Array.prototype.slice.call(body.querySelectorAll('h2, h3, h4')) : [];
+                if (heads.length < 2) { hideToc(); return; } // 标题太少不值得展示目录
+                // 无 id 的标题（html 格式文章）按 heading-ids 规则补生成，重名 -1/-2；与预渲染 buildTocHtml 同规则
+                var used = {};
+                heads.forEach(function (h) { if (h.hasAttribute('id')) used[h.getAttribute('id')] = 1; });
+                heads.forEach(function (h) {
+                    if (h.hasAttribute('id')) return;
+                    var base = typeof headingSlug === 'function' ? headingSlug(h.textContent) : '';
+                    if (!base) { h.setAttribute('data-toc-skip', '1'); return; } // 无 slug 标题不入目录
+                    var n = 0, sid = base;
+                    while (used[sid]) { n += 1; sid = base + '-' + n; }
+                    used[sid] = 1;
+                    h.setAttribute('id', sid);
+                });
+                var entries = heads.filter(function (h) { return !h.hasAttribute('data-toc-skip'); });
+                if (entries.length < 2) { hideToc(); return; }
+                tocCol.innerHTML =
+                    '<div class="toc-card">' +
+                    '<div class="toc-title">目录</div>' +
+                    '<nav class="toc-list" id="tocList">' +
+                    entries.map(function (h) {
+                        var cls = h.tagName === 'H2' ? 'lvl-2' : (h.tagName === 'H3' ? 'lvl-3' : 'lvl-4');
+                        return '<a class="' + cls + '" href="#' + encodeURIComponent(h.getAttribute('id')) + '">' + esc(h.textContent.trim()) + '</a>';
+                    }).join('') +
+                    '</nav></div>';
+                tocCol.hidden = false;
+                document.body.classList.add('has-toc');
+                initTocSpy(entries);
+            }
+
             var id = (location.search.match(/[?&]id=(\d+)/) || [])[1];
+            // articleWrap 为壳内空 div：无预渲染正文时先展示加载占位（预渲染页保留正文，不覆写）
+            var wrap0 = document.getElementById('articleWrap');
+            if (!wrap0.hasAttribute('data-prerendered')) wrap0.innerHTML = '<div class="post-tip">文章加载中…</div>';
             if (!id) {
-                document.getElementById('articleWrap').innerHTML = '<div class="post-tip">文章不存在</div>';
+                wrap0.innerHTML = '<div class="post-tip">文章不存在</div>';
+                hideToc();
             } else {
                 fetch('/api/articles/' + id)
                     .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
@@ -278,6 +379,9 @@
                             // 预渲染内容存在时保留正文（文章在页面加载后被删除等竞态场景，不毁掉已渲染的内容）
                             if (!wrap.hasAttribute('data-prerendered')) {
                                 wrap.innerHTML = '<div class="post-tip">' + esc(r.data.message || '文章不存在') + '</div>';
+                                hideToc();
+                            } else {
+                                initToc(); // 从保留的预渲染正文构建目录
                             }
                             return;
                         }
@@ -308,12 +412,16 @@
                             '<div class="table-scroll"><div class="article-body">' + bodyHtml + '</div></div>' +
                             '</article>';
                         initComments();
+                        initToc(); // 渲染完成后构建目录模块（正文无 ≥2 个标题时自动隐藏）
                     })
                     .catch(function () {
                         var wrap = document.getElementById('articleWrap');
                         // 网络失败但有预渲染正文时保留内容，不清屏
                         if (!wrap.hasAttribute('data-prerendered')) {
                             wrap.innerHTML = '<div class="post-tip">文章加载失败，请稍后重试</div>';
+                            hideToc();
+                        } else {
+                            initToc();
                         }
                     });
             }

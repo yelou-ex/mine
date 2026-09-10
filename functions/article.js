@@ -13,7 +13,7 @@
  * D1 异常时降级回静态壳（context.next()），不阻断页面浏览。
  */
 import { marked } from 'marked';
-import { ensureSchema, sanitizeHtml, mdToPlainText, addHeadingIds } from './_lib.mjs';
+import { ensureSchema, sanitizeHtml, mdToPlainText, addHeadingIds, buildTocHtml } from './_lib.mjs';
 
 const SITE = 'yelou的个人博客';
 
@@ -108,6 +108,9 @@ export async function onRequest(context) {
       '<div class="table-scroll"><div class="article-body">' + bodyHtml + '</div></div>' +
       '</article>';
 
+    // 目录模块（PC 右上独立卡片）：与前端 initToc 同规则，预渲染进壳让爬虫/首抓可见
+    const toc = buildTocHtml(bodyHtml);
+
     // 壳内占位与前端 article.html 的静态默认值一一对应；任一处失配则原样返回静态壳（不阻断）
     let out = shell
       .replace('<title>文章详情 - ' + SITE + '</title>', '<title>' + escHtml(title) + '</title>')
@@ -120,7 +123,19 @@ export async function onRequest(context) {
       .replace('<meta property="og:url" content="https://yelou.pages.dev/article">',
         '<meta property="og:url" content="' + escHtml(url.href) + '">')
       .replace('<div id="articleWrap"></div>',
-        '<div id="articleWrap" data-prerendered="1">' + prerender + '</div>');
+        '<div id="articleWrap" data-prerendered="1">' + prerender + '</div>')
+      .replace('<aside class="toc-col" id="tocCol" hidden></aside>',
+        '<aside class="toc-col" id="tocCol"' + (toc.visible ? '' : ' hidden') + '>' + toc.tocHtml + '</aside>')
+      .replace('<body>', '<body' + (toc.visible ? ' class="has-toc"' : '') + '>');
+
+    // 注入点失配防护：关键标记未出现说明壳结构已变化，原样返回静态壳（避免交付无标记的旧页面）
+    if (!out.includes('data-prerendered="1"')) {
+      console.warn('[article.js] 预渲染注入点失配，返回静态壳');
+      return new Response(shell, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' },
+      });
+    }
 
     return new Response(out, {
       status: 200,
