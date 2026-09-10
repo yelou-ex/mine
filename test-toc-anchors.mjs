@@ -138,9 +138,10 @@ console.log('6) buildTocHtml（PC 目录模块预渲染，与前端 initToc 同�
     assert.equal(buildTocHtml('<h2>Only</h2>').visible, false);
     assert.equal(buildTocHtml('<p>无标题</p>').visible, false);
   });
-  check('卡片含「首页」按钮（toc-head + toc-home → index.html）', () => {
-    assert.match(toc6.tocHtml, /class="toc-head"/);
-    assert.match(toc6.tocHtml, /class="toc-home" href="index\.html"/);
+  check('卡片含「评论/首页」按钮（评论 → #commentWrap 页内锚点，首页 → index.html）', () => {
+    assert.match(toc6.tocHtml, /class="toc-actions"/);
+    assert.match(toc6.tocHtml, /class="toc-btn toc-comment" href="#commentWrap"/);
+    assert.match(toc6.tocHtml, /class="toc-btn toc-home" href="index\.html"/);
   });
 }
 
@@ -152,9 +153,12 @@ console.log('7) 卡片 sticky 固定 + 首页按钮（article.html 真实壳 CSS
     assert.ok(/align-items:\s*stretch/.test(shell), '缺 align-items:stretch'));
   check('卡片 position:sticky top:20px', () =>
     assert.ok(/position:\s*sticky;\s*top:\s*20px/.test(shell), '缺 sticky'));
-  check('卡片含「首页」按钮（toc-head/toc-home → index.html）', () => {
-    assert.ok(shell.includes('toc-head') && shell.includes('toc-home') && shell.includes('href="index.html"'), '缺首页按钮');
+  check('卡片含「评论/首页」按钮（toc-actions/toc-btn；评论 → #commentWrap）', () => {
+    assert.ok(shell.includes('toc-actions') && shell.includes('toc-comment') && shell.includes('href="#commentWrap"'), '缺评论按钮');
+    assert.ok(shell.includes('toc-home') && shell.includes('href="index.html"'), '缺首页按钮');
   });
+  check('评论区锚点落地偏移（#commentWrap scroll-margin-top）', () =>
+    assert.ok(/#commentWrap\s*\{\s*scroll-margin-top/.test(shell), '缺 scroll-margin-top'));
 }
 
 console.log('\n全部通过：' + passed + ' 项 ✅');

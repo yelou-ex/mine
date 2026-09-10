@@ -80,13 +80,14 @@
             }
             .toc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
             .toc-title { font-size: 15px; font-weight: 600; color: #2c3e50; }
-            /* 卡片上的「首页」按钮：随时返回首页 */
-            .toc-home {
+            /* 卡片上的「评论」「首页」按钮（共用胶囊样式）：评论 → 页内锚点 #commentWrap，首页 → index.html */
+            .toc-actions { display: flex; gap: 6px; }
+            .toc-btn {
                 font-size: 12px; color: #3498db; background: #eaf2f8;
                 padding: 3px 10px; border-radius: 4px; text-decoration: none;
                 transition: background-color .2s, color .2s;
             }
-            .toc-home:hover { background: #3498db; color: #fff; }
+            .toc-btn:hover { background: #3498db; color: #fff; }
             .toc-list a {
                 display: block; padding: 4px 8px; margin: 1px 0;
                 color: #7f8c8d; font-size: 13.5px; line-height: 1.45;
@@ -118,6 +119,8 @@
         .copyright { font-size: 14px; }
         .post-tip { background-color: #fff; border-radius: 8px; padding: 40px 20px; text-align: center; color: #7f8c8d; margin: 30px 0; }
         /* 评论区（REQ-25 / REQ-27） */
+        /* 目录卡片「评论」按钮锚点 #commentWrap 的落地偏移（与 sticky 卡片顶距一致） */
+        #commentWrap { scroll-margin-top: 20px; }
         .comments-wrap { background-color: #fff; opacity: 0.95; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); padding: 24px 40px; margin: 0 0 30px; }
         .comments-title { color: #2c3e50; font-size: 18px; margin: 0 0 14px; }
         .comments-title .count { color: #7f8c8d; font-size: 14px; font-weight: normal; }
@@ -362,7 +365,10 @@
                 tocCol.innerHTML =
                     '<div class="toc-card">' +
                     '<div class="toc-head"><span class="toc-title">目录</span>' +
-                    '<a class="toc-home" href="index.html" title="返回首页">首页</a></div>' +
+                    '<span class="toc-actions">' +
+                    '<a class="toc-btn toc-comment" href="#commentWrap" title="跳到评论区">评论</a>' +
+                    '<a class="toc-btn toc-home" href="index.html" title="返回首页">首页</a>' +
+                    '</span></div>' +
                     '<nav class="toc-list" id="tocList">' +
                     entries.map(function (h) {
                         var cls = h.tagName === 'H2' ? 'lvl-2' : (h.tagName === 'H3' ? 'lvl-3' : 'lvl-4');
