@@ -97,6 +97,11 @@ async function run() {
   r = await api('/api/admin/articles', { method: 'POST', body: { title: 'E2E测试文章', category: '学习笔记', content: '<p>这是<b>测试</b>内容</p>', tags: '测试,学习,学习' }, csrf });
   check('合法文章 → 200 发布成功', r.status === 200 && r.data.success && r.data.message === '发布成功', `got ${r.status} ${r.text}`);
   const newId = r.data && r.data.id;
+  {
+    const al = await api('/api/admin/articles');
+    const newRow = al.data.articles.find((a) => a.id === newId);
+    check('updated_at：发布时自动填充（sitemap 新鲜度信号）', !!newRow && newRow.updated_at !== '', JSON.stringify(newRow && newRow.updated_at));
+  }
 
   r = await api('/api/admin/articles', { method: 'POST', body: { title: 'E2E测试文章', category: '学习笔记', content: '<p>这是<b>测试</b>内容</p>', tags: '测试,学习,学习' }, csrf });
   check('5 秒内重复提交 → 429', r.status === 429, `got ${r.status} ${r.text}`);

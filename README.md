@@ -61,6 +61,7 @@ npm start
 2. **创建 D1 数据库**：Cloudflare 控制台 → Workers & Pages → D1 → Create database（名字随意，如 `personal-website-db`），创建后复制 **Database ID**
 3. **绑定 D1 到 Pages 项目**：打开你的 Pages 项目 → Settings → Functions → D1 database bindings → 绑定数据库，**变量名必须为 `DB`**
 4. **设置会话密钥**：Pages 项目 → Settings → Environment variables → Production 添加 `SESSION_SECRET`（任意长随机字符串，如 `openssl rand -hex 32` 生成的值）。不设置也能运行，但密钥不固定会导致每次部署后需重新登录
+   （可选）添加 `INDEXNOW_KEY`：在 [Bing 站长工具](https://www.bing.com/webmasters) 生成 IndexNow key 后填入。配置后，后台发布/修改/删除文章会**自动即时通知 Bing**（无需等 sitemap 重抓），`/{key}.txt` 校验文件由 `functions/[key].txt.js` 自动提供；未配置则静默跳过，不影响功能
 5. **构建配置**：Pages 项目 → Settings → Builds & deployments → 构建命令留空、输出目录 `/`（无需框架构建）
 6. **重新部署**：推送代码后 Cloudflare 会自动构建部署，或手动 Deploy
 7. 访问 `https://<项目名>.pages.dev`（前台 + `/admin/login.html` 均可使用）
@@ -70,7 +71,9 @@ npm start
 ### 本地测试 Cloudflare 函数
 
 ```bash
-npm run test:cf   # 36 项用例（用 better-sqlite3 模拟 D1，覆盖登录/权限/CSRF/校验/XSS/删除/防暴力破解）
+npm run test:cf   # 130 项用例（用 better-sqlite3 模拟 D1，覆盖登录/权限/CSRF/校验/XSS/删除/防暴力破解/Markdown 表格/浏览次数/预渲染/IndexNow）
+npm test          # 67 项端到端用例（需先 node server.js 启动本地服务）
+node test-xss-fixes.mjs  # 前端 XSS 修复回归（article.html 渲染器白名单 / 表格 / 预渲染守卫）
 ```
 
 ## 目录结构

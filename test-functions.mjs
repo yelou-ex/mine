@@ -526,6 +526,49 @@ console.log('\n[10] /article 预渲染（Bing 指引 §8/§9/§13/§21 索引增
   db.prepare("DELETE FROM articles WHERE id IN (90, 91, 92)").run();
 }
 
+console.log('\n[11] IndexNow + updated_at（新文章即时通知 / sitemap 新鲜度信号）');
+{
+  const { indexNowUrls } = await import('./functions/_lib.mjs');
+  // 无 key → 静默跳过（不崩溃、不发请求）
+  let called = 0;
+  const mockFetch = async () => { called++; return { ok: true }; };
+  await indexNowUrls({}, ['https://yelou.pages.dev/article?id=1'], { fetchImpl: mockFetch });
+  check('IndexNow：未配置 key 时静默跳过', called === 0, `called=${called}`);
+  // 有 key → 通知新增 URL
+  called = 0;
+  await indexNowUrls({ INDEXNOW_KEY: 'k-test' }, ['https://yelou.pages.dev/article?id=1'], { fetchImpl: mockFetch });
+  check('IndexNow：有 key 时通知新 URL', called === 1, `called=${called}`);
+  // 删除模式：body 中 URL 带 DELETE 前缀，首行为 key
+  let lastBody = '', lastUrl = '';
+  await indexNowUrls({ INDEXNOW_KEY: 'k-test' }, ['https://yelou.pages.dev/article?id=1'], {
+    deleteMode: true,
+    fetchImpl: async (u, o) => { lastUrl = u; lastBody = o && o.body; return { ok: true }; },
+  });
+  check('IndexNow：删除通知 URL 带 DELETE 前缀', lastBody === 'k-test\nDELETE https://yelou.pages.dev/article?id=1' && /key=k-test/.test(lastUrl), JSON.stringify(lastBody));
+
+  // key 文件路由：/{key}.txt 明文返回 key；不匹配放行 context.next()
+  const { onRequest: keyTxtFn } = await import('./functions/[key].txt.js');
+  const kt = await keyTxtFn({ request: new Request('https://yelou.pages.dev/k-test.txt'), env: { INDEXNOW_KEY: 'k-test' }, params: { key: 'k-test' }, next: async () => new Response('static-fallback') });
+  const ktBody = await kt.text();
+  check('IndexNow：/{key}.txt 明文返回 key', kt.status === 200 && ktBody === 'k-test', `got ${kt.status} ${ktBody}`);
+  const kt2 = await keyTxtFn({ request: new Request('https://yelou.pages.dev/other.txt'), env: { INDEXNOW_KEY: 'k-test' }, params: { key: 'other' }, next: async () => new Response('static-fallback', { status: 404 }) });
+  check('IndexNow：非 key 的 .txt 放行（不泄露、不拦截）', (await kt2.text()) === 'static-fallback', '');
+
+  // updated_at：存量库回填 + 新文章自动维护
+  const ua1 = db.prepare('SELECT updated_at, created_at FROM articles WHERE id = 1').get();
+  check('updated_at：存量行回填为 created_at', !!ua1 && ua1.updated_at !== '', JSON.stringify(ua1));
+  // 本节位于登出测试之后，重新登录再执行管理接口
+  await call('/api/login', { method: 'POST', body: { username: 'admin', password: 'admin123' } });
+  const csrf11 = (await call('/api/csrf-token')).data.csrfToken;
+  const na = await call('/api/admin/articles', { method: 'POST', body: { title: 'IndexNow测试文章', category: '博客', content: '<p>x</p>' }, csrf: csrf11 });
+  check('updated_at：发布新文章成功（IndexNow 无 key 不阻断）', na.status === 200 && na.data.success, `got ${na.status} ${na.text}`);
+  if (na.status === 200) {
+    const ua2 = db.prepare('SELECT updated_at FROM articles WHERE id = ?').get(na.data.id);
+    check('updated_at：新文章非空', !!ua2 && ua2.updated_at !== '', JSON.stringify(ua2));
+    await call('/api/admin/articles/' + na.data.id, { method: 'DELETE', csrf: csrf11 });
+  }
+}
+
 console.log(`\n========================================`);
 console.log(`通过 ${passed} 项 / 失败 ${failed} 项`);
 console.log(`========================================`);

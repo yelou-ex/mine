@@ -4,7 +4,7 @@
  * 逻辑与本地 Express 版（server.js）保持一致，运行于 Workers 无状态环境。
  */
 import {
-  json, parseCookies, sanitizeHtml, sanitizeLink, validateArticle, ensureSchema, mdToPlainText,
+  json, parseCookies, sanitizeHtml, sanitizeLink, validateArticle, ensureSchema, mdToPlainText, indexNowUrls,
   hashPassword, verifyPassword, createSessionToken, verifySessionToken,
   makeCookie, getAdminSession, getCsrfCookie,
   logLogin, checkLocked, recordLoginFailure, clearLoginFailures,
@@ -259,7 +259,7 @@ export async function onRequest(context) {
         const keyword = url.searchParams.get('keyword') || '';
         const category = url.searchParams.get('category') || '';
         const tag = url.searchParams.get('tag') || '';
-        let sql = "SELECT id, title, category, tags, link, format, views, created_at FROM articles WHERE 1=1";
+        let sql = "SELECT id, title, category, tags, link, format, views, updated_at, created_at FROM articles WHERE 1=1";
         const args = [];
         if (keyword) { sql += ' AND title LIKE ?'; args.push(`%${keyword}%`); }
         if (category) { sql += ' AND category = ?'; args.push(category); }
@@ -295,8 +295,11 @@ export async function onRequest(context) {
         ).first();
         const newId = nextRow ? nextRow.id : 1;
         await env.DB.prepare(
-          'INSERT INTO articles (id, title, content, category, tags, link, format) VALUES (?, ?, ?, ?, ?, ?, ?)'
+          'INSERT INTO articles (id, title, content, category, tags, link, format, created_at, updated_at) ' +
+          "VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))"
         ).bind(newId, title, content, category, tags, link, format).run();
+        // IndexNow：新文章即时通知（未配置 key 时自动跳过）
+        indexNowUrls(env, ['https://' + new URL(request.url).host + '/article?id=' + newId]);
         return json({ success: true, id: newId, message: '发布成功' });
       }
       return json({ message: '接口不存在' }, 404);
@@ -319,8 +322,10 @@ export async function onRequest(context) {
 
       const { title, content, category, tags, link, format } = result.value;
       await env.DB.prepare(
-        'UPDATE articles SET title = ?, content = ?, category = ?, tags = ?, link = ?, format = ? WHERE id = ?'
+        "UPDATE articles SET title = ?, content = ?, category = ?, tags = ?, link = ?, format = ?, updated_at = datetime('now','localtime') WHERE id = ?"
       ).bind(title, content, category, tags, link, format, id).run();
+      // IndexNow：内容更新即时通知
+      indexNowUrls(env, ['https://' + new URL(request.url).host + '/article?id=' + id]);
       return json({ success: true, message: '更新成功' });
     }
 
@@ -338,6 +343,9 @@ export async function onRequest(context) {
       if (existIds.length) {
         await env.DB.prepare(`DELETE FROM comments WHERE article_id IN (${placeholders})`).bind(...existIds).run();
         await env.DB.prepare(`DELETE FROM articles WHERE id IN (${placeholders})`).bind(...existIds).run();
+        // IndexNow：批量删除通知
+        const host = new URL(request.url).host;
+        indexNowUrls(env, existIds.map((i) => `https://${host}/article?id=${i}`), { deleteMode: true });
       }
       return json({ success: true, deleted: existIds.length, message: `删除成功（${existIds.length} 篇）` });
     }
@@ -352,6 +360,8 @@ export async function onRequest(context) {
       if (!row) return json({ message: '文章不存在或已被删除' }, 404); // BC-23
       await env.DB.prepare('DELETE FROM comments WHERE article_id = ?').bind(id).run(); // 级联清理评论
       await env.DB.prepare('DELETE FROM articles WHERE id = ?').bind(id).run();
+      // IndexNow：URL 删除通知（搜索引擎从索引移除）
+      indexNowUrls(env, ['https://' + new URL(request.url).host + '/article?id=' + id], { deleteMode: true });
       return json({ success: true, message: '删除成功' });
     }
 

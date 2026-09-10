@@ -238,6 +238,23 @@ function sanitizeLink(input) {
   return s;
 }
 
+/* ================= IndexNow（Bing 指引 §4：URL 新增/更新/删除时主动通知搜索引擎） ================= */
+// 未配置 INDEXNOW_KEY 时静默跳过；key 在 Bing 站长工具生成。
+// 协议还要求站点在 https://域名/{key}.txt 明文提供 key（下方同名 .txt 路由负责，
+// 与 Cloudflare 版 functions/[key].txt.js 行为一致）。任何异常仅告警，不阻断管理操作。
+function indexNow(urls, deleteMode = false) {
+  const key = process.env.INDEXNOW_KEY;
+  if (!key || !Array.isArray(urls) || !urls.length) return;
+  const qs = new URLSearchParams();
+  qs.set('url', urls[0]);
+  qs.set('key', key);
+  fetch('https://api.indexnow.org/indexnow?' + qs.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: [key, ...urls.map((u) => (deleteMode ? 'DELETE ' : '') + u)].join('\n'),
+  }).catch((e) => console.warn('[indexnow] 通知失败（不影响主流程）:', e && e.message));
+}
+
 /* ================= 评论（REQ-25 ~ 33 / BC-27 ~ 36） ================= */
 // 评论内容统一按纯文本处理：先整体剔除危险元素（含其内容），再去除剩余 HTML 标签，
 // 最后剥离残留的未配对 < >（如未闭合标签片段 <img src=x onerror=... 无 ">"，不会被上面两条命中）
@@ -602,7 +619,7 @@ app.get('/api/admin/articles', requireAdmin, (req, res) => {
   const tag = typeof req.query.tag === 'string' ? req.query.tag.trim() : '';
   try {
     // 后台列表显示全部文章（含带跳转链接的文章，可正常编辑/删除）
-    let sql = "SELECT id, title, category, tags, link, format, views, created_at FROM articles WHERE 1=1";
+    let sql = "SELECT id, title, category, tags, link, format, views, updated_at, created_at FROM articles WHERE 1=1";
     const params = [];
     if (keyword) {
       sql += ' AND title LIKE ?';
@@ -663,8 +680,13 @@ app.post('/api/admin/articles', requireAdminWrite, (req, res) => {
       .get();
     const newId = nextRow ? nextRow.id : 1;
 
-    db.prepare('INSERT INTO articles (id, title, content, category, tags, link, format) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    db.prepare(
+      "INSERT INTO articles (id, title, content, category, tags, link, format, created_at, updated_at) " +
+      "VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))"
+    )
       .run(newId, title, content, category, tags, link, format);
+    // IndexNow：新文章即时通知（未配置 INDEXNOW_KEY 时自动跳过）
+    indexNow(['https://' + req.get('host') + '/article?id=' + newId]);
     res.json({ success: true, id: newId, message: '发布成功' });
   } catch (e) {
     console.error('[admin.articles.create]', e);
@@ -688,8 +710,10 @@ app.put('/api/admin/articles/:id', requireAdminWrite, (req, res) => {
     if (!row) return res.status(404).json({ message: '文章不存在或已被删除' });
 
     db.prepare(
-      'UPDATE articles SET title = ?, content = ?, category = ?, tags = ?, link = ?, format = ? WHERE id = ?'
+      "UPDATE articles SET title = ?, content = ?, category = ?, tags = ?, link = ?, format = ?, updated_at = datetime('now','localtime') WHERE id = ?"
     ).run(title, content, category, tags, link, format, id);
+    // IndexNow：内容更新即时通知
+    indexNow(['https://' + req.get('host') + '/article?id=' + id]);
     res.json({ success: true, message: '更新成功' });
   } catch (e) {
     console.error('[admin.articles.update]', e);
@@ -709,6 +733,8 @@ app.delete('/api/admin/articles/:id', requireAdminWrite, (req, res) => {
     // 先显式清理评论（D1 版行为一致；本地 SQLite 亦有外键级联兜底）
     db.prepare('DELETE FROM comments WHERE article_id = ?').run(id);
     db.prepare('DELETE FROM articles WHERE id = ?').run(id);
+    // IndexNow：URL 删除通知（搜索引擎从索引移除）
+    indexNow(['https://' + req.get('host') + '/article?id=' + id], true);
     res.json({ success: true, message: '删除成功' });
   } catch (e) {
     console.error('[admin.articles.delete]', e);
@@ -722,9 +748,10 @@ app.post('/api/admin/articles/batch-delete', requireAdminWrite, (req, res) => {
     const ids = Array.isArray(req.body.ids) ? req.body.ids.map(Number).filter((n) => Number.isInteger(n) && n > 0) : [];
     if (!ids.length) return res.status(400).json({ message: '请选择要删除的文章' });
     const placeholders = ids.map(() => '?').join(',');
+    let existIds = [];
     const tx = db.transaction(() => {
       const existing = db.prepare(`SELECT id FROM articles WHERE id IN (${placeholders})`).all(...ids);
-      const existIds = existing.map((r) => r.id);
+      existIds = existing.map((r) => r.id);
       if (existIds.length) {
         db.prepare(`DELETE FROM comments WHERE article_id IN (${placeholders})`).run(...existIds);
         db.prepare(`DELETE FROM articles WHERE id IN (${placeholders})`).run(...existIds);
@@ -732,6 +759,11 @@ app.post('/api/admin/articles/batch-delete', requireAdminWrite, (req, res) => {
       return existIds.length;
     });
     const deleted = tx();
+    // IndexNow：批量删除通知（只通知真实存在的）
+    if (existIds.length) {
+      const host = req.get('host');
+      indexNow(existIds.map((i) => `https://${host}/article?id=${i}`), true);
+    }
     res.json({ success: true, deleted, message: `删除成功（${deleted} 篇）` });
   } catch (e) {
     console.error('[admin.articles.batchDelete]', e);
@@ -779,6 +811,18 @@ app.delete('/api/admin/comments/:id', requireAdminWrite, (req, res) => {
     console.error('[admin.comments.delete]', e);
     res.status(500).json({ message: '删除失败，请稍后重试' });
   }
+});
+
+/* ================= IndexNow key 文件（与 Cloudflare 版 functions/[key].txt.js 一致） ================= */
+// 仅当配置了 INDEXNOW_KEY 时生效：GET /{key}.txt 明文返回 key；其余 .txt 放行（静态文件照常）
+app.get(/^.+\.txt$/, (req, res, next) => {
+  const key = process.env.INDEXNOW_KEY;
+  const name = req.path.slice(1, -4);
+  if (key && name === key) {
+    res.type('text/plain').send(key);
+    return;
+  }
+  next();
 });
 
 /* ================= 错误兜底 ================= */

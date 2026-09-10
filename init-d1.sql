@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS articles (
   link       TEXT NOT NULL DEFAULT '',
   format     TEXT NOT NULL DEFAULT 'html',  -- html | markdown（markdown 时 content 为 md 源码）
   views      INTEGER NOT NULL DEFAULT 0,    -- 浏览次数（详情页访问时 +1，后台可见）
+  updated_at TEXT NOT NULL DEFAULT '',       -- 最近编辑时间（sitemap lastmod 新鲜度信号）
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 

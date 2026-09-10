@@ -412,6 +412,10 @@ export async function ensureSchema(env) {
   if (!artCols.results.some((c) => c.name === 'views')) {
     await env.DB.prepare('ALTER TABLE articles ADD COLUMN views INTEGER NOT NULL DEFAULT 0').run();
   }
+  if (!artCols.results.some((c) => c.name === 'updated_at')) {
+    await env.DB.prepare("ALTER TABLE articles ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''").run();
+    await env.DB.prepare("UPDATE articles SET updated_at = created_at WHERE updated_at = ''").run();
+  }
   await env.DB.batch([
     env.DB.prepare("UPDATE articles SET link = 'introduce.html' WHERE title = '个人基本信息' AND link = ''"),
     // 学习之路/一路所获页面已并入 introduce.html（原 myway.html、honor.html 已下线）
@@ -502,4 +506,27 @@ export async function isDuplicateSubmit(env, fingerprint) {
 export async function sha256Fingerprint(text) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return toB64(digest);
+}
+
+/* ================= IndexNow（Bing 指引 §4：URL 新增/更新/删除时主动通知搜索引擎） ================= */
+// 未配置 INDEXNOW_KEY 时静默跳过（不影响主流程）。
+// key 在 Bing 站长工具生成，配置到 Cloudflare Pages 环境变量；
+// 协议还要求站点在 https://域名/{key}.txt 明文提供 key（functions/[key].txt.js 负责）。
+// fetchImpl 可注入（测试用）；任何异常仅告警，绝不阻断管理操作。
+export async function indexNowUrls(env, urls, { deleteMode = false, fetchImpl = fetch } = {}) {
+  const key = env && env.INDEXNOW_KEY;
+  if (!key || !Array.isArray(urls) || !urls.length) return;
+  try {
+    const qs = new URLSearchParams();
+    qs.set('url', urls[0]);
+    qs.set('key', key);
+    await fetchImpl('https://api.indexnow.org/indexnow?' + qs.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      // 协议格式：body 第一行为 hostKey，随后每行一个 URL（删除以 "DELETE " 前缀）
+      body: [key, ...urls.map((u) => (deleteMode ? 'DELETE ' : '') + u)].join('\n'),
+    });
+  } catch (e) {
+    console.warn('[indexnow] 通知失败（不影响主流程）:', e && e.message);
+  }
 }

@@ -64,6 +64,7 @@ db.exec(`
     link       TEXT NOT NULL DEFAULT '',
     format     TEXT NOT NULL DEFAULT 'html',  -- html | markdown（markdown 时 content 为 md 源码）
     views      INTEGER NOT NULL DEFAULT 0,    -- 浏览次数（详情页访问时 +1，后台可见）
+    updated_at TEXT NOT NULL DEFAULT '',      -- 最近编辑时间（新列为空串，迁移时回填为 created_at；sitemap lastmod 信号）
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
   );
 
@@ -105,6 +106,11 @@ function migrate() {
   if (!cols.some((c) => c.name === 'views')) {
     db.prepare('ALTER TABLE articles ADD COLUMN views INTEGER NOT NULL DEFAULT 0').run();
     console.log('[db] 已迁移：articles 表新增 views 列（浏览次数）');
+  }
+  if (!cols.some((c) => c.name === 'updated_at')) {
+    db.prepare("ALTER TABLE articles ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''").run();
+    db.prepare("UPDATE articles SET updated_at = created_at WHERE updated_at = ''").run();
+    console.log('[db] 已迁移：articles 表新增 updated_at 列（回填 created_at）');
   }
   const upd = db.prepare("UPDATE articles SET link = ? WHERE title = ? AND link = ''");
   upd.run('introduce.html', '个人基本信息');

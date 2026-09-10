@@ -21,11 +21,12 @@ export async function onRequest(context) {
   try {
     await ensureSchema(env);
     // 仅收录可被读者打开的文章（link 非空的固定页面已单独收录，避免重复）
+    // lastmod 优先用 updated_at（编辑文章后 sitemap 有新鲜度信号，驱动 Bing 重新抓取）
     const rows = await env.DB.prepare(
-      "SELECT id, created_at FROM articles WHERE link = '' ORDER BY id"
+      "SELECT id, COALESCE(NULLIF(updated_at, ''), created_at) AS lastmod FROM articles WHERE link = '' ORDER BY id"
     ).all();
     for (const r of rows.results) {
-      const lastmod = String(r.created_at || '').slice(0, 10) || STATIC_PAGES[0].lastmod;
+      const lastmod = String(r.lastmod || '').slice(0, 10) || STATIC_PAGES[0].lastmod;
       urls.push({ loc: `${BASE}/article?id=${r.id}`, lastmod });
     }
   } catch (e) {
