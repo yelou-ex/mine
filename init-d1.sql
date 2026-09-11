@@ -39,11 +39,24 @@ CREATE TABLE IF NOT EXISTS comments (
   email      TEXT NOT NULL DEFAULT '',
   content    TEXT NOT NULL,
   ip         TEXT NOT NULL DEFAULT '',
+  parent_id  INTEGER NOT NULL DEFAULT 0,   -- 回复目标评论 id（0 = 顶级评论；仅允许一级嵌套）
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   created_ms INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_comments_article ON comments (article_id);
+
+-- 点赞（文章 / 评论）：按 IP 唯一，重复点赞幂等；target_type ∈ {article, comment}
+CREATE TABLE IF NOT EXISTS likes (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  target_type TEXT NOT NULL,
+  target_id   INTEGER NOT NULL,
+  ip          TEXT NOT NULL DEFAULT '',
+  created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  created_ms  INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+  UNIQUE (target_type, target_id, ip)
+);
+CREATE INDEX IF NOT EXISTS idx_likes_target ON likes (target_type, target_id);
 
 -- 插入默认管理员（密码: admin123）
 -- 注意：生产环境请立即修改密码

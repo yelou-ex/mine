@@ -647,12 +647,12 @@
                         return '<tr>' +
                             '<td class="hide-mobile">' + c.id + '</td>' +
                             '<td>' + link + '</td>' +
-                            '<td>' + esc(c.nickname) + '</td>' +
+                            '<td>' + esc(c.nickname) + (c.parent_id ? ' <span style="color:#3498db;font-size:12px;">回复 @' + esc(c.parent_nickname || '?') + '</span>' : '') + '</td>' +
                             '<td class="hide-mobile">' + (c.email ? esc(c.email) : '<span style="color:#bdc3c7">—</span>') + '</td>' +
                             '<td><div class="cm-content" title="' + esc(c.content) + '">' + esc(c.content) + '</div></td>' +
                             '<td class="hide-mobile" style="color:#7f8c8d;">' + esc(c.ip) + '</td>' +
                             '<td style="color:#7f8c8d;">' + esc(c.created_at) + '</td>' +
-                            '<td><button class="btn-del btn-cmdel" data-id="' + c.id + '" data-display="' + esc(display) + '">删除</button></td>' +
+                            '<td><button class="btn-del btn-cmdel" data-id="' + c.id + '" data-display="' + esc(display) + '" data-reply="' + (c.reply_count || 0) + '">删除</button></td>' +
                             '</tr>';
                     }).join('');
                 }
@@ -660,9 +660,11 @@
                 $('cmPrevPage').disabled = cmPage <= 1;
                 $('cmNextPage').disabled = cmPage >= pages;
             }
-            function openCommentConfirm(id, display) {
+            function openCommentConfirm(id, display, replyCount) {
                 pendingDelete = { mode: 'comment', id: id, display: display };
-                $('modalDesc').textContent = '确定要删除以下评论吗？删除后前台将立即不可见，且不可恢复。';
+                $('modalDesc').textContent = (replyCount > 0)
+                    ? '确定要删除以下评论吗？将连同其 ' + replyCount + ' 条回复一并删除，删除后前台立即不可见，且不可恢复。'
+                    : '确定要删除以下评论吗？删除后前台将立即不可见，且不可恢复。';
                 $('modalTarget').textContent = display;
                 $('confirmModal').classList.add('show');
             }
@@ -913,7 +915,7 @@
                 if (!btn) return;
                 var id = Number(btn.getAttribute('data-id'));
                 var display = btn.getAttribute('data-display');
-                openCommentConfirm(id, display);
+                openCommentConfirm(id, display, Number(btn.getAttribute('data-reply')) || 0);
             });
             $('batchDelBtn').addEventListener('click', function () {
                 var ids = selectedIds();

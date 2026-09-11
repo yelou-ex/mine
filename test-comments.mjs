@@ -139,6 +139,47 @@ try {
   const dup2 = await req('POST', `/api/articles/${aid}/comments`, { body: { nickname: 'dup', content: '重复测试内容ABC' } });
   check('REQ-30 60s 内重复评论 → 429', dup1.status === 200 && dup2.status === 429, `first=${dup1.status} second=${dup2.status}`);
 
+  console.log('\n== 回复评论与点赞 ==');
+  // 取正常评论的 id 作为回复目标
+  const cmNow = await req('GET', `/api/articles/${aid}/comments`);
+  const topCm = cmNow.data.comments.find((c) => c.content === '写得很棒') || cmNow.data.comments[0];
+
+  const badParent = await req('POST', `/api/articles/${aid}/comments`, { body: { nickname: 'r', content: '回复', parent_id: 424242 } });
+  check('回复不存在的评论 → 404', badParent.status === 404, `got ${badParent.status}`);
+
+  const replyOk = await req('POST', `/api/articles/${aid}/comments`, { body: { nickname: '小华', content: '同意！', parent_id: topCm.id } });
+  check('正常回复（带 parent_id）→ 200', replyOk.status === 200 && replyOk.data.success === true, `got ${replyOk.status} ${replyOk.data && replyOk.data.message}`);
+  const cm2 = await req('GET', `/api/articles/${aid}/comments`);
+  const replyRow = cm2.data.comments.find((c) => c.id === replyOk.data.id);
+  check('回复 parent_id 正确入库', replyRow && Number(replyRow.parent_id) === Number(topCm.id), `row=${JSON.stringify(replyRow && { id: replyRow.id, parent_id: replyRow.parent_id })}`);
+  check('顶级评论 parent_id 为 0/缺省', !topCm.parent_id, `parent_id=${topCm.parent_id}`);
+
+  const deepReply = await req('POST', `/api/articles/${aid}/comments`, { body: { nickname: 'deep', content: '二级', parent_id: replyOk.data.id } });
+  check('多层回复（回复一条回复）→ 400', deepReply.status === 400, `got ${deepReply.status} ${deepReply.data && deepReply.data.message}`);
+
+  const dupReply = await req('POST', `/api/articles/${aid}/comments`, { body: { nickname: '小华', content: '同意！', parent_id: topCm.id } });
+  check('重复回复（同 parent 同内容 60s）→ 429', dupReply.status === 429, `got ${dupReply.status}`);
+
+  const like1 = await req('POST', `/api/articles/${aid}/like`);
+  check('文章点赞 → liked=true', like1.status === 200 && like1.data.liked === true && like1.data.likes >= 1, `got ${JSON.stringify(like1.data)}`);
+  const like2 = await req('POST', `/api/articles/${aid}/like`);
+  check('再次点赞 → 取消（liked=false，计数-1）', like2.status === 200 && like2.data.liked === false && like2.data.likes === like1.data.likes - 1, `got ${JSON.stringify(like2.data)}`);
+  const like3 = await req('POST', `/api/articles/${aid}/like`);
+  check('取消后再点 → 重新点赞', like3.status === 200 && like3.data.liked === true && like3.data.likes === like2.data.likes + 1, `got ${JSON.stringify(like3.data)}`);
+  const likeMissing = await req('POST', '/api/articles/999999/like');
+  check('点赞同不存在的文章 → 404', likeMissing.status === 404, `got ${likeMissing.status}`);
+
+  const cl1 = await req('POST', `/api/comments/${topCm.id}/like`);
+  check('评论点赞 → liked=true likes=1', cl1.status === 200 && cl1.data.liked === true && cl1.data.likes === 1, `got ${JSON.stringify(cl1.data)}`);
+  const cl2 = await req('POST', `/api/comments/${topCm.id}/like`);
+  check('再次评论点赞 → 取消', cl2.status === 200 && cl2.data.liked === false && cl2.data.likes === 0, `got ${JSON.stringify(cl2.data)}`);
+  const clMissing = await req('POST', '/api/comments/999999/like');
+  check('点赞同不存在的评论 → 404', clMissing.status === 404, `got ${clMissing.status}`);
+
+  const cm3 = await req('GET', `/api/articles/${aid}/comments`);
+  const withLikes = cm3.data.comments.find((c) => c.id === topCm.id);
+  check('评论列表含 likes 数字字段', withLikes && typeof withLikes.likes === 'number', `likes=${withLikes && withLikes.likes}`);
+
   console.log('\n== 后台评论管理 ==');
 
   // REQ-33 / BC-35 未登录读取后台评论 → 401

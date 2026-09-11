@@ -83,11 +83,24 @@ db.exec(`
     email      TEXT NOT NULL DEFAULT '',
     content    TEXT NOT NULL,
     ip         TEXT NOT NULL DEFAULT '',
+    parent_id  INTEGER NOT NULL DEFAULT 0,  -- 回复目标评论 id（0 = 顶级评论；仅允许一级嵌套）
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     created_ms INTEGER NOT NULL DEFAULT (strftime('%s','now'))
   );
 
   CREATE INDEX IF NOT EXISTS idx_comments_article ON comments (article_id);
+
+  -- 点赞（文章 / 评论）：按 IP 唯一，重复点赞幂等；target_type ∈ {article, comment}
+  CREATE TABLE IF NOT EXISTS likes (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_type TEXT NOT NULL,
+    target_id   INTEGER NOT NULL,
+    ip          TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    created_ms  INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+    UNIQUE (target_type, target_id, ip)
+  );
+  CREATE INDEX IF NOT EXISTS idx_likes_target ON likes (target_type, target_id);
 `);
 
 // 迁移：为已有数据库补 link 列，并统一 3 篇种子文章的 link 指向 introduce.html；
@@ -111,6 +124,12 @@ function migrate() {
     db.prepare("ALTER TABLE articles ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''").run();
     db.prepare("UPDATE articles SET updated_at = created_at WHERE updated_at = ''").run();
     console.log('[db] 已迁移：articles 表新增 updated_at 列（回填 created_at）');
+  }
+  // 评论回复：comments 表补 parent_id 列（0 = 顶级评论，仅允许一级嵌套）
+  const cmtCols = db.prepare('PRAGMA table_info(comments)').all();
+  if (!cmtCols.some((c) => c.name === 'parent_id')) {
+    db.prepare('ALTER TABLE comments ADD COLUMN parent_id INTEGER NOT NULL DEFAULT 0').run();
+    console.log('[db] 已迁移：comments 表新增 parent_id 列（回复评论）');
   }
   const upd = db.prepare("UPDATE articles SET link = ? WHERE title = ? AND link = ''");
   upd.run('introduce.html', '个人基本信息');

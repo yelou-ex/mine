@@ -201,7 +201,16 @@ export async function onRequest(context) {
       try {
         await env.DB.prepare('UPDATE articles SET views = views + 1 WHERE id = ?').bind(Number(detailMatch[1])).run();
       } catch (e) { /* 忽略计数写失败 */ }
-      return json({ article: { ...row, link: sanitizeLink(row.link), views: (row.views || 0) + 1 } });
+      // 文章点赞数（前端点赞按钮初始展示）
+      const likeRow = await env.DB.prepare(
+        "SELECT COUNT(*) AS c FROM likes WHERE target_type = 'article' AND target_id = ?"
+      ).bind(Number(detailMatch[1])).first();
+      return json({
+        article: {
+          ...row, link: sanitizeLink(row.link), views: (row.views || 0) + 1,
+          likes: Number(likeRow && likeRow.c) || 0,
+        },
+      });
     }
 
     /* ---------- 前台评论（REQ-25 ~ 31 / BC-27 ~ 36） ---------- */
@@ -211,10 +220,23 @@ export async function onRequest(context) {
       const article = await env.DB.prepare('SELECT id FROM articles WHERE id = ?').bind(aid).first();
       if (!article) return json({ message: '文章不存在' }, 404); // BC-32（公开接口中性文案）
       // 数据最小化：公开接口不返回 email（评论邮箱仅存库供作者回信，后台 /api/admin/comments 仍可查）
+      // parent_id：回复关系（0 = 顶级）；likes：每条评论的点赞数（前端点赞按钮展示）
       const rows = await env.DB.prepare(
-        'SELECT id, nickname, content, created_at FROM comments WHERE article_id = ? ORDER BY id ASC'
+        'SELECT id, nickname, content, created_at, parent_id FROM comments WHERE article_id = ? ORDER BY id ASC'
       ).bind(aid).all();
-      return json({ comments: rows.results, count: rows.results.length });
+      let likeMap = {};
+      const ids = rows.results.map((r) => r.id).filter(Boolean);
+      if (ids.length) {
+        const ph = ids.map(() => '?').join(',');
+        const likes = await env.DB.prepare(
+          `SELECT target_id, COUNT(*) AS c FROM likes WHERE target_type = 'comment' AND target_id IN (${ph}) GROUP BY target_id`
+        ).bind(...ids).all();
+        likeMap = Object.fromEntries(likes.results.map((r) => [r.target_id, Number(r.c)]));
+      }
+      return json({
+        comments: rows.results.map((r) => ({ ...r, likes: likeMap[r.id] || 0 })),
+        count: rows.results.length,
+      });
     }
     if (commentMatch && method === 'POST') {
       const aid = Number(commentMatch[1]);
@@ -228,10 +250,25 @@ export async function onRequest(context) {
       const { nickname, email, content } = result.value;
       const ip = clientIp;
 
-      // 防重复提交（REQ-30 / BC-33）：同 IP + 同文章 + 同内容，60 秒窗口（基于 UTC 纪元秒 created_ms，不受时区影响）
+      // 回复目标（选填）：须存在且属于当前文章；仅允许一级嵌套（只能回复顶级评论）
+      let parentId = 0;
+      if (body.parent_id !== undefined && body.parent_id !== null && body.parent_id !== '') {
+        parentId = Number(body.parent_id);
+        if (!Number.isInteger(parentId) || parentId <= 0) {
+          return json({ message: '回复目标无效' }, 400);
+        }
+        const parent = await env.DB.prepare(
+          'SELECT id, article_id, parent_id FROM comments WHERE id = ?'
+        ).bind(parentId).first();
+        if (!parent) return json({ message: '被回复的评论不存在' }, 404);
+        if (Number(parent.article_id) !== aid) return json({ message: '被回复的评论不属于当前文章' }, 400);
+        if (Number(parent.parent_id) !== 0) return json({ message: '暂不支持多层回复，请回复顶级评论' }, 400);
+      }
+
+      // 防重复提交（REQ-30 / BC-33）：同 IP + 同文章 + 同回复目标 + 同内容，60 秒窗口（基于 UTC 纪元秒 created_ms，不受时区影响）
       const last = await env.DB.prepare(
-        'SELECT created_ms FROM comments WHERE article_id = ? AND ip = ? AND content = ? ORDER BY id DESC LIMIT 1'
-      ).bind(aid, ip, content).first();
+        'SELECT created_ms FROM comments WHERE article_id = ? AND ip = ? AND content = ? AND parent_id = ? ORDER BY id DESC LIMIT 1'
+      ).bind(aid, ip, content, parentId).first();
       if (last && last.created_ms && Date.now() - last.created_ms * 1000 < COMMENT_DUP_WINDOW_MS) {
         return json({ message: '请勿重复提交评论' }, 429);
       }
@@ -244,10 +281,60 @@ export async function onRequest(context) {
         return json({ message: '评论过于频繁，请稍后再试' }, 429);
       }
 
-      await env.DB.prepare(
-        'INSERT INTO comments (article_id, nickname, email, content, ip) VALUES (?, ?, ?, ?, ?)'
-      ).bind(aid, nickname, email, content, ip).run();
-      return json({ success: true, message: '评论发布成功' });
+      const ins = await env.DB.prepare(
+        'INSERT INTO comments (article_id, nickname, email, content, ip, parent_id) VALUES (?, ?, ?, ?, ?, ?)'
+      ).bind(aid, nickname, email, content, ip, parentId).run();
+      const newId = ins && ins.meta ? Number(ins.meta.last_row_id) : 0;
+      return json({ success: true, id: newId, message: parentId ? '回复发布成功' : '评论发布成功' });
+    }
+
+    /* ---------- 点赞切换（文章/评论：按 IP 幂等，再点取消；与本地 Express 版行为一致） ---------- */
+    const articleLikeMatch = path.match(/^\/api\/articles\/(\d+)\/like$/);
+    if (articleLikeMatch && method === 'POST') {
+      const aid = Number(articleLikeMatch[1]);
+      const article = await env.DB.prepare('SELECT id FROM articles WHERE id = ?').bind(aid).first();
+      if (!article) return json({ message: '文章不存在' }, 404);
+      const ip = clientIp;
+      const existing = await env.DB.prepare(
+        "SELECT id FROM likes WHERE target_type = 'article' AND target_id = ? AND ip = ?"
+      ).bind(aid, ip).first();
+      let liked;
+      if (existing) {
+        await env.DB.prepare('DELETE FROM likes WHERE id = ?').bind(existing.id).run();
+        liked = false;
+      } else {
+        await env.DB.prepare("INSERT INTO likes (target_type, target_id, ip) VALUES ('article', ?, ?)")
+          .bind(aid, ip).run();
+        liked = true;
+      }
+      const c = await env.DB.prepare(
+        "SELECT COUNT(*) AS c FROM likes WHERE target_type = 'article' AND target_id = ?"
+      ).bind(aid).first();
+      return json({ success: true, liked, likes: Number(c && c.c) || 0 });
+    }
+
+    const commentLikeMatch = path.match(/^\/api\/comments\/(\d+)\/like$/);
+    if (commentLikeMatch && method === 'POST') {
+      const cid = Number(commentLikeMatch[1]);
+      const cm = await env.DB.prepare('SELECT id FROM comments WHERE id = ?').bind(cid).first();
+      if (!cm) return json({ message: '评论不存在' }, 404);
+      const ip = clientIp;
+      const existing = await env.DB.prepare(
+        "SELECT id FROM likes WHERE target_type = 'comment' AND target_id = ? AND ip = ?"
+      ).bind(cid, ip).first();
+      let liked;
+      if (existing) {
+        await env.DB.prepare('DELETE FROM likes WHERE id = ?').bind(existing.id).run();
+        liked = false;
+      } else {
+        await env.DB.prepare("INSERT INTO likes (target_type, target_id, ip) VALUES ('comment', ?, ?)")
+          .bind(cid, ip).run();
+        liked = true;
+      }
+      const c = await env.DB.prepare(
+        "SELECT COUNT(*) AS c FROM likes WHERE target_type = 'comment' AND target_id = ?"
+      ).bind(cid).first();
+      return json({ success: true, liked, likes: Number(c && c.c) || 0 });
     }
 
     /* ---------- 后台管理接口（管理员 + CSRF） ---------- */
@@ -341,6 +428,20 @@ export async function onRequest(context) {
       const existing = await env.DB.prepare(`SELECT id FROM articles WHERE id IN (${placeholders})`).bind(...ids).all();
       const existIds = existing.results.map((r) => r.id);
       if (existIds.length) {
+        // 点赞清理：这些文章的全部评论点赞 + 文章点赞
+        const cmRows = await env.DB.prepare(
+          `SELECT id FROM comments WHERE article_id IN (${placeholders})`
+        ).bind(...existIds).all();
+        const cmIds = cmRows.results.map((r) => r.id);
+        if (cmIds.length) {
+          const cmPh = cmIds.map(() => '?').join(',');
+          await env.DB.prepare(
+            `DELETE FROM likes WHERE target_type = 'comment' AND target_id IN (${cmPh})`
+          ).bind(...cmIds).run();
+        }
+        await env.DB.prepare(
+          `DELETE FROM likes WHERE target_type = 'article' AND target_id IN (${placeholders})`
+        ).bind(...existIds).run();
         await env.DB.prepare(`DELETE FROM comments WHERE article_id IN (${placeholders})`).bind(...existIds).run();
         await env.DB.prepare(`DELETE FROM articles WHERE id IN (${placeholders})`).bind(...existIds).run();
         // IndexNow：批量删除通知
@@ -358,6 +459,17 @@ export async function onRequest(context) {
       const id = Number(adminDelMatch[1]);
       const row = await env.DB.prepare('SELECT id FROM articles WHERE id = ?').bind(id).first();
       if (!row) return json({ message: '文章不存在或已被删除' }, 404); // BC-23
+      // 级联清理点赞：该文章的评论点赞 + 文章点赞（先删点赞再删评论/文章）
+      const cmIds = (await env.DB.prepare(
+        'SELECT id FROM comments WHERE article_id = ?'
+      ).bind(id).all()).results.map((r) => r.id);
+      if (cmIds.length) {
+        const cmPh = cmIds.map(() => '?').join(',');
+        await env.DB.prepare(
+          `DELETE FROM likes WHERE target_type = 'comment' AND target_id IN (${cmPh})`
+        ).bind(...cmIds).run();
+      }
+      await env.DB.prepare("DELETE FROM likes WHERE target_type = 'article' AND target_id = ?").bind(id).run();
       await env.DB.prepare('DELETE FROM comments WHERE article_id = ?').bind(id).run(); // 级联清理评论
       await env.DB.prepare('DELETE FROM articles WHERE id = ?').bind(id).run();
       // IndexNow：URL 删除通知（搜索引擎从索引移除）
@@ -370,9 +482,12 @@ export async function onRequest(context) {
       const session = await getAdminSession(request, env);
       if (!session) return unauthorized();
       const articleId = url.searchParams.get('articleId') || '';
+      // 含回复关系（parent_id / 被回复人昵称）与回复数（删除提示用）
       let sql =
-        'SELECT c.id, c.article_id, a.title AS article_title, c.nickname, c.email, c.content, c.ip, c.created_at ' +
-        'FROM comments c LEFT JOIN articles a ON a.id = c.article_id';
+        'SELECT c.id, c.article_id, a.title AS article_title, c.nickname, c.email, c.content, c.ip, ' +
+        'c.parent_id, p.nickname AS parent_nickname, ' +
+        '(SELECT COUNT(*) FROM comments ch WHERE ch.parent_id = c.id) AS reply_count, c.created_at ' +
+        'FROM comments c LEFT JOIN articles a ON a.id = c.article_id LEFT JOIN comments p ON p.id = c.parent_id';
       const args = [];
       if (articleId && Number.isInteger(Number(articleId)) && Number(articleId) > 0) {
         sql += ' WHERE c.article_id = ?';
@@ -389,10 +504,23 @@ export async function onRequest(context) {
       const auth = await requireAdminWrite(request, env);
       if (auth.error) return auth.error;
       const id = Number(adminCmMatch[1]);
-      const row = await env.DB.prepare('SELECT id FROM comments WHERE id = ?').bind(id).first();
+      const row = await env.DB.prepare('SELECT id, parent_id FROM comments WHERE id = ?').bind(id).first();
       if (!row) return json({ message: '评论不存在或已被删除' }, 404);
-      await env.DB.prepare('DELETE FROM comments WHERE id = ?').bind(id).run();
-      return json({ success: true, message: '删除成功' });
+      // 级联：顶级评论连同其全部回复一并删除，并清理它们对应的点赞
+      const childIds = (await env.DB.prepare(
+        'SELECT id FROM comments WHERE parent_id = ?'
+      ).bind(id).all()).results.map((r) => r.id);
+      const delIds = [id, ...childIds];
+      const delPh = delIds.map(() => '?').join(',');
+      await env.DB.prepare(
+        `DELETE FROM likes WHERE target_type = 'comment' AND target_id IN (${delPh})`
+      ).bind(...delIds).run();
+      await env.DB.prepare(`DELETE FROM comments WHERE id IN (${delPh})`).bind(...delIds).run();
+      return json({
+        success: true,
+        deleted: delIds.length,
+        message: childIds.length ? `删除成功（连同 ${childIds.length} 条回复）` : '删除成功',
+      });
     }
 
     return json({ message: '接口不存在' }, 404);

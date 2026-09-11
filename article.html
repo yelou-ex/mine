@@ -142,6 +142,34 @@
         .comment-msg { font-size: 13px; margin-top: 8px; min-height: 16px; }
         .comment-msg.error { color: #e74c3c; }
         .comment-msg.ok { color: #27ae60; }
+        /* 点赞按钮（文章 meta 行 + 评论操作行共用） */
+        .like-btn {
+            font-size: 12.5px; color: #7f8c8d; background: #f4f6f8;
+            border: 1px solid #e3e8ee; border-radius: 12px; padding: 2px 10px; cursor: pointer;
+            transition: color .2s, background-color .2s, border-color .2s;
+        }
+        .like-btn:hover { color: #e67e22; border-color: #f0c8a0; background: #fdf4ea; }
+        .like-btn.on { color: #fff; background: #e67e22; border-color: #e67e22; }
+        .like-btn.on:hover { background: #d35400; }
+        .article-like { margin-left: 10px; vertical-align: middle; }
+        /* 评论操作行：点赞 + 回复（回复仅顶级评论显示） */
+        .comment-actions { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+        .cm-reply { font-size: 12.5px; color: #7f8c8d; background: none; border: none; cursor: pointer; padding: 2px 4px; }
+        .cm-reply:hover { color: #3498db; }
+        /* 嵌套回复（一级）：缩进 + 弱化样式 */
+        .comment-replies { margin-top: 10px; padding-left: 14px; border-left: 2px solid #ecf0f1; }
+        .comment-item.reply .comment-head { font-size: 12px; }
+        .comment-item.reply .comment-content { font-size: 13.5px; }
+        /* 内联回复表单 */
+        .reply-form { margin-top: 10px; padding: 10px 12px; background: #f8f9fa; border-radius: 6px; }
+        .reply-form input, .reply-form textarea {
+            width: 100%; box-sizing: border-box; border: 1px solid #dfe4e8; border-radius: 4px;
+            padding: 7px 9px; font-size: 13px; font-family: inherit; margin-bottom: 8px;
+        }
+        .reply-form textarea { resize: vertical; min-height: 56px; }
+        .reply-btns { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .reply-cancel { font-size: 12.5px; color: #7f8c8d; background: #ecf0f1; border: none; border-radius: 4px; padding: 6px 14px; cursor: pointer; }
+        .reply-cancel:hover { background: #dfe4e8; }
         /* 手机端适配（≤ 768px） */
         @media (max-width: 768px) {
             .header-content { flex-direction: column; gap: 12px; }
@@ -160,6 +188,7 @@
             .comment-form textarea { min-height: 72px; }
             .comment-form .btn-submit { width: 100%; padding: 12px; font-size: 16px; }
             .comment-msg { margin-top: 10px; }
+            .reply-form input, .reply-form textarea { font-size: 16px; }
         }
     </style>
 </head>
@@ -424,12 +453,14 @@
                         wrap.innerHTML =
                             '<article class="article-wrap">' +
                             '<h1 class="article-title">' + esc(a.title) + '</h1>' +
-                            '<div class="article-meta">发布于: ' + fmtDate(a.created_at) + ' | 分类: ' + esc(a.category) + (a.format === 'markdown' ? ' | Markdown' : '') + '</div>' +
+                            '<div class="article-meta">发布于: ' + fmtDate(a.created_at) + ' | 分类: ' + esc(a.category) + (a.format === 'markdown' ? ' | Markdown' : '') +
+                            ' <button type="button" class="like-btn article-like" id="articleLikeBtn"></button></div>' +
                             (tags ? '<div class="article-tags">' + tags + '</div>' : '') +
                             '<div class="table-scroll"><div class="article-body">' + bodyHtml + '</div></div>' +
                             '</article>';
                         initComments();
                         initToc(); // 渲染完成后构建目录模块（正文无 ≥2 个标题时自动隐藏）
+                        initArticleLike(a.likes || 0); // 文章点赞按钮（初始数量来自 API）
                     })
                     .catch(function () {
                         var wrap = document.getElementById('articleWrap');
@@ -463,25 +494,59 @@
                     '</div>';
                 loadComments();
                 document.getElementById('c-submit').addEventListener('click', submitComment);
+                // 评论列表内的点赞/回复按钮：事件委托（动态回复表单也由此统一处理）
+                document.getElementById('commentList').addEventListener('click', onCommentListClick);
             }
 
             var justPosted = false; // 5.5.5：仅当本页刚提交成功时，刷新后自动滚动定位新评论
+            var justPostedId = 0;    // 回复成功后定位到该评论（含嵌套层级）
+            var repliesByParent = {}; // 评论 id → 其回复数组（renderComments 填充，commentNode 读取）
+            function commentNode(c, isReply) {
+                var acts = '<div class="comment-actions">' +
+                    '<button type="button" class="like-btn cm-like' +
+                    (localStorage.getItem('yslike_c_' + c.id) === '1' ? ' on' : '') +
+                    '" data-id="' + c.id + '"><span id="likeC_' + c.id + '">👍 ' + (c.likes || 0) + '</span></button>';
+                if (!isReply) acts += '<button type="button" class="cm-reply" data-id="' + c.id + '">回复</button>';
+                acts += '</div>';
+                var inner =
+                    '<div class="comment-head"><span class="nickname">' + esc(c.nickname) + '</span>' +
+                    esc(fmtDate(c.created_at)) + '</div>' +
+                    '<div class="comment-content">' + esc(c.content) + '</div>' +
+                    acts;
+                if (!isReply) {
+                    var reps = repliesByParent[c.id];
+                    if (reps && reps.length) {
+                        inner += '<div class="comment-replies">' +
+                            reps.map(function (rc) {
+                                return '<div class="comment-item reply" data-id="' + rc.id + '">' + commentNode(rc, true) + '</div>';
+                            }).join('') +
+                            '</div>';
+                    }
+                }
+                return '<div class="comment-item' + (isReply ? ' reply' : '') + '" data-id="' + c.id + '">' + inner + '</div>';
+            }
             function renderComments(data) {
                 document.getElementById('commentCount').textContent = '（' + data.count + '）';
                 var list = document.getElementById('commentList');
                 if (!data.comments.length) {
                     list.innerHTML = '<div class="comment-empty">暂无评论，快来抢沙发</div>';
                     justPosted = false;
+                    justPostedId = 0;
                     return;
                 }
-                list.innerHTML = data.comments.map(function (c) {
-                    return '<div class="comment-item">' +
-                        '<div class="comment-head"><span class="nickname">' + esc(c.nickname) + '</span>' +
-                        esc(fmtDate(c.created_at)) + '</div>' +
-                        '<div class="comment-content">' + esc(c.content) + '</div>' +
-                        '</div>';
-                }).join('');
-                if (justPosted) {
+                // 分组：顶级评论（parent_id=0/缺省）+ 其回复（仅一级嵌套）
+                var topLevel = [];
+                repliesByParent = {};
+                data.comments.forEach(function (c) {
+                    if (c.parent_id) { (repliesByParent[c.parent_id] = repliesByParent[c.parent_id] || []).push(c); }
+                    else { topLevel.push(c); }
+                });
+                list.innerHTML = topLevel.map(function (c) { return commentNode(c, false); }).join('');
+                if (justPostedId) {
+                    var el = list.querySelector('.comment-item[data-id="' + justPostedId + '"]');
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    justPostedId = 0;
+                } else if (justPosted) {
                     justPosted = false;
                     var last = list.querySelector('.comment-item:last-child');
                     if (last) last.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -537,6 +602,7 @@
                             msg.textContent = r.data.message || '评论发布成功';
                             msg.className = 'comment-msg ok';
                             document.getElementById('c-content').value = '';
+                            localStorage.setItem('ys_nick', nickname); // 回复表单预填昵称
                             justPosted = true; // 刷新后自动滚动到最新一条
                             loadComments();
                         } else {
@@ -553,6 +619,124 @@
                         btn.disabled = false;
                         btn.textContent = '发表评论';
                     });
+            }
+
+            /* ---------- 文章点赞（按 IP 幂等切换：再点取消；按钮态存 localStorage） ---------- */
+            function initArticleLike(initialLikes) {
+                var btn = document.getElementById('articleLikeBtn');
+                if (!btn) return;
+                var likes = Number(initialLikes) || 0;
+                var liked = localStorage.getItem('yslike_a_' + id) === '1';
+                function paint() {
+                    btn.textContent = '👍 ' + (liked ? '已赞' : '点赞') + '（' + likes + '）';
+                    btn.classList.toggle('on', liked);
+                }
+                paint();
+                btn.addEventListener('click', function () {
+                    fetch('/api/articles/' + id + '/like', { method: 'POST' })
+                        .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+                        .then(function (r) {
+                            if (r.status !== 200) return;
+                            liked = !!r.data.liked;
+                            likes = Number(r.data.likes) || 0;
+                            localStorage.setItem('yslike_a_' + id, liked ? '1' : '0');
+                            paint();
+                        })
+                        .catch(function () {});
+                });
+            }
+
+            /* ---------- 评论点赞切换 ---------- */
+            function toggleCommentLike(btn, cmId) {
+                fetch('/api/comments/' + cmId + '/like', { method: 'POST' })
+                    .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+                    .then(function (r) {
+                        if (r.status !== 200) return;
+                        localStorage.setItem('yslike_c_' + cmId, r.data.liked ? '1' : '0');
+                        btn.classList.toggle('on', !!r.data.liked);
+                        var n = document.getElementById('likeC_' + cmId);
+                        if (n) n.textContent = '👍 ' + (Number(r.data.likes) || 0);
+                    })
+                    .catch(function () {});
+            }
+
+            /* ---------- 内联回复表单（点「回复」在目标评论下展开；仅顶级评论可回复） ---------- */
+            function openReplyForm(cmId) {
+                var list = document.getElementById('commentList');
+                if (!list) return;
+                var item = list.querySelector('.comment-item[data-id="' + cmId + '"]:not(.reply)');
+                if (!item || item.querySelector('.reply-form')) return;
+                var nick = localStorage.getItem('ys_nick') || '';
+                var form = document.createElement('div');
+                form.className = 'reply-form';
+                form.setAttribute('data-parent', cmId);
+                form.innerHTML =
+                    '<input class="reply-nick" maxlength="20" placeholder="昵称（必填）" value="' + esc(nick) + '">' +
+                    '<textarea rows="2" maxlength="1000" placeholder="写下你的回复…（≤ 1000 字符）"></textarea>' +
+                    '<div class="reply-btns">' +
+                    '<button type="button" class="btn-submit reply-submit">提交回复</button>' +
+                    '<button type="button" class="reply-cancel">取消</button>' +
+                    '<span class="comment-msg"></span>' +
+                    '</div>';
+                item.appendChild(form);
+                form.querySelector('.reply-nick').focus();
+            }
+
+            function submitReply(form) {
+                if (form.getAttribute('data-busy')) return;
+                var parentId = Number(form.getAttribute('data-parent'));
+                var nick = form.querySelector('.reply-nick').value.trim();
+                var content = form.querySelector('textarea').value;
+                var msg = form.querySelector('.comment-msg');
+                msg.className = 'comment-msg';
+                function err(m) { msg.textContent = m; msg.classList.add('error'); }
+                if (!nick) { err('昵称不能为空'); return; }
+                if (nick.length > 20) { err('昵称不能超过 20 个字符'); return; }
+                if (!content.trim() || !content.replace(/<[^>]*>/g, '').trim()) { err('回复内容不能为空'); return; }
+                if (content.length > 1000) { err('回复不能超过 1000 字符'); return; }
+                form.setAttribute('data-busy', '1');
+                var btn = form.querySelector('.reply-submit');
+                btn.disabled = true;
+                btn.textContent = '提交中…';
+                fetch('/api/articles/' + id + '/comments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nickname: nick, content: content, parent_id: parentId })
+                })
+                    .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+                    .then(function (r) {
+                        btn.disabled = false;
+                        btn.textContent = '提交回复';
+                        form.removeAttribute('data-busy');
+                        if (r.status === 200) {
+                            localStorage.setItem('ys_nick', nick);
+                            justPostedId = r.data.id || 0; // 刷新后定位到新回复
+                            form.remove();
+                            loadComments();
+                        } else {
+                            err(r.data.message || '回复发布失败，请稍后重试');
+                        }
+                    })
+                    .catch(function () {
+                        btn.disabled = false;
+                        btn.textContent = '提交回复';
+                        form.removeAttribute('data-busy');
+                        err('回复发布失败，请稍后重试');
+                    });
+            }
+
+            /* ---------- 评论列表事件委托（点赞 / 回复 / 回复表单按钮） ---------- */
+            function onCommentListClick(e) {
+                var t = e.target;
+                if (!t || !t.closest) return;
+                var like = t.closest('.cm-like');
+                if (like) { toggleCommentLike(like, like.getAttribute('data-id')); return; }
+                var rp = t.closest('.cm-reply');
+                if (rp) { openReplyForm(rp.getAttribute('data-id')); return; }
+                var cancel = t.closest('.reply-cancel');
+                if (cancel) { var f = cancel.closest('.reply-form'); if (f) f.remove(); return; }
+                var submit = t.closest('.reply-submit');
+                if (submit) { submitReply(submit.closest('.reply-form')); }
             }
         })();
     </script>

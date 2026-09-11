@@ -561,7 +561,11 @@ app.get('/api/articles/:id', (req, res) => {
     } catch (e) {
       console.error('[articles.views]', e);
     }
-    res.json({ article: { ...row, link: sanitizeLink(row.link), views: row.views + 1 } });
+    // 文章点赞数（前端点赞按钮初始展示；与 D1 版行为一致）
+    const likeRow = db.prepare("SELECT COUNT(*) AS c FROM likes WHERE target_type = 'article' AND target_id = ?").get(id);
+    res.json({
+      article: { ...row, link: sanitizeLink(row.link), views: row.views + 1, likes: likeRow ? likeRow.c : 0 },
+    });
   } catch (e) {
     console.error('[articles.detail]', e);
     res.status(500).json({ message: '系统繁忙，请稍后重试' });
@@ -577,10 +581,23 @@ app.get('/api/articles/:id/comments', (req, res) => {
     const article = db.prepare('SELECT id FROM articles WHERE id = ?').get(id);
     if (!article) return res.status(404).json({ message: '文章不存在' });
     // 数据最小化：公开接口不返回 email（评论邮箱仅存库供作者回信，后台 /api/admin/comments 仍可查）
+    // parent_id：回复关系（0 = 顶级）；likes：每条评论点赞数（与 D1 版一致）
     const rows = db
-      .prepare('SELECT id, nickname, content, created_at FROM comments WHERE article_id = ? ORDER BY id ASC')
+      .prepare('SELECT id, nickname, content, created_at, parent_id FROM comments WHERE article_id = ? ORDER BY id ASC')
       .all(id);
-    res.json({ comments: rows, count: rows.length });
+    let likeMap = {};
+    const ids = rows.map((r) => r.id).filter(Boolean);
+    if (ids.length) {
+      const ph = ids.map(() => '?').join(',');
+      const likes = db
+        .prepare(`SELECT target_id, COUNT(*) AS c FROM likes WHERE target_type = 'comment' AND target_id IN (${ph}) GROUP BY target_id`)
+        .all(...ids);
+      likeMap = Object.fromEntries(likes.map((r) => [r.target_id, r.c]));
+    }
+    res.json({
+      comments: rows.map((r) => ({ ...r, likes: likeMap[r.id] || 0 })),
+      count: rows.length,
+    });
   } catch (e) {
     console.error('[comments.list]', e);
     res.status(500).json({ message: '系统繁忙，请稍后重试' });
@@ -600,10 +617,21 @@ app.post('/api/articles/:id/comments', (req, res) => {
     const { nickname, email, content } = result.value;
     const ip = req.ip || '';
 
-    // 防重复提交（REQ-30 / BC-33）：同 IP + 同文章 + 同内容，60 秒窗口（基于 UTC 纪元秒 created_ms，不受时区影响）
+    // 回复目标（选填）：须存在且属于当前文章；仅允许一级嵌套（只能回复顶级评论；与 D1 版一致）
+    let parentId = 0;
+    if (req.body.parent_id !== undefined && req.body.parent_id !== null && req.body.parent_id !== '') {
+      parentId = Number(req.body.parent_id);
+      if (!Number.isInteger(parentId) || parentId <= 0) return res.status(400).json({ message: '回复目标无效' });
+      const parent = db.prepare('SELECT id, article_id, parent_id FROM comments WHERE id = ?').get(parentId);
+      if (!parent) return res.status(404).json({ message: '被回复的评论不存在' });
+      if (Number(parent.article_id) !== id) return res.status(400).json({ message: '被回复的评论不属于当前文章' });
+      if (Number(parent.parent_id) !== 0) return res.status(400).json({ message: '暂不支持多层回复，请回复顶级评论' });
+    }
+
+    // 防重复提交（REQ-30 / BC-33）：同 IP + 同文章 + 同回复目标 + 同内容，60 秒窗口（基于 UTC 纪元秒 created_ms，不受时区影响）
     const last = db
-      .prepare('SELECT created_ms FROM comments WHERE article_id = ? AND ip = ? AND content = ? ORDER BY id DESC LIMIT 1')
-      .get(id, ip, content);
+      .prepare('SELECT created_ms FROM comments WHERE article_id = ? AND ip = ? AND content = ? AND parent_id = ? ORDER BY id DESC LIMIT 1')
+      .get(id, ip, content, parentId);
     if (last && last.created_ms && Date.now() - last.created_ms * 1000 < COMMENT_DUP_WINDOW_MS) {
       return res.status(429).json({ message: '请勿重复提交评论' });
     }
@@ -618,12 +646,63 @@ app.post('/api/articles/:id/comments', (req, res) => {
     }
 
     const info = db
-      .prepare('INSERT INTO comments (article_id, nickname, email, content, ip) VALUES (?, ?, ?, ?, ?)')
-      .run(id, nickname, email, content, ip);
-    res.json({ success: true, id: info.lastInsertRowid, message: '评论发布成功' });
+      .prepare('INSERT INTO comments (article_id, nickname, email, content, ip, parent_id) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(id, nickname, email, content, ip, parentId);
+    res.json({ success: true, id: info.lastInsertRowid, message: parentId ? '回复发布成功' : '评论发布成功' });
   } catch (e) {
     console.error('[comments.create]', e);
     res.status(500).json({ message: '评论发布失败，请稍后重试' }); // BC-36
+  }
+});
+
+/* ================= 点赞切换（文章/评论：按 IP 幂等，再点取消；与 D1 版一致） ================= */
+// 文章点赞
+app.post('/api/articles/:id/like', (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ message: '文章不存在' });
+  try {
+    const article = db.prepare('SELECT id FROM articles WHERE id = ?').get(id);
+    if (!article) return res.status(404).json({ message: '文章不存在' });
+    const ip = req.ip || '';
+    const existing = db.prepare("SELECT id FROM likes WHERE target_type = 'article' AND target_id = ? AND ip = ?").get(id, ip);
+    let liked;
+    if (existing) {
+      db.prepare('DELETE FROM likes WHERE id = ?').run(existing.id);
+      liked = false;
+    } else {
+      db.prepare("INSERT INTO likes (target_type, target_id, ip) VALUES ('article', ?, ?)").run(id, ip);
+      liked = true;
+    }
+    const c = db.prepare("SELECT COUNT(*) AS c FROM likes WHERE target_type = 'article' AND target_id = ?").get(id);
+    res.json({ success: true, liked, likes: c ? c.c : 0 });
+  } catch (e) {
+    console.error('[like.article]', e);
+    res.status(500).json({ message: '系统繁忙，请稍后重试' });
+  }
+});
+
+// 评论点赞
+app.post('/api/comments/:id/like', (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ message: '评论不存在' });
+  try {
+    const cm = db.prepare('SELECT id FROM comments WHERE id = ?').get(id);
+    if (!cm) return res.status(404).json({ message: '评论不存在' });
+    const ip = req.ip || '';
+    const existing = db.prepare("SELECT id FROM likes WHERE target_type = 'comment' AND target_id = ? AND ip = ?").get(id, ip);
+    let liked;
+    if (existing) {
+      db.prepare('DELETE FROM likes WHERE id = ?').run(existing.id);
+      liked = false;
+    } else {
+      db.prepare("INSERT INTO likes (target_type, target_id, ip) VALUES ('comment', ?, ?)").run(id, ip);
+      liked = true;
+    }
+    const c = db.prepare("SELECT COUNT(*) AS c FROM likes WHERE target_type = 'comment' AND target_id = ?").get(id);
+    res.json({ success: true, liked, likes: c ? c.c : 0 });
+  } catch (e) {
+    console.error('[like.comment]', e);
+    res.status(500).json({ message: '系统繁忙，请稍后重试' });
   }
 });
 
@@ -746,6 +825,13 @@ app.delete('/api/admin/articles/:id', requireAdminWrite, (req, res) => {
   try {
     const row = db.prepare('SELECT id FROM articles WHERE id = ?').get(id);
     if (!row) return res.status(404).json({ message: '文章不存在或已被删除' });
+    // 级联清理点赞：该文章的全部评论点赞 + 文章点赞（先删点赞再删评论/文章；与 D1 版一致）
+    const cmIds = db.prepare('SELECT id FROM comments WHERE article_id = ?').all(id).map((r) => r.id);
+    if (cmIds.length) {
+      const cmPh = cmIds.map(() => '?').join(',');
+      db.prepare(`DELETE FROM likes WHERE target_type = 'comment' AND target_id IN (${cmPh})`).run(...cmIds);
+    }
+    db.prepare("DELETE FROM likes WHERE target_type = 'article' AND target_id = ?").run(id);
     // 先显式清理评论（D1 版行为一致；本地 SQLite 亦有外键级联兜底）
     db.prepare('DELETE FROM comments WHERE article_id = ?').run(id);
     db.prepare('DELETE FROM articles WHERE id = ?').run(id);
@@ -769,6 +855,13 @@ app.post('/api/admin/articles/batch-delete', requireAdminWrite, (req, res) => {
       const existing = db.prepare(`SELECT id FROM articles WHERE id IN (${placeholders})`).all(...ids);
       existIds = existing.map((r) => r.id);
       if (existIds.length) {
+        // 级联清理点赞：这些文章的全部评论点赞 + 文章点赞（与 D1 版一致）
+        const bCmIds = db.prepare(`SELECT id FROM comments WHERE article_id IN (${placeholders})`).all(...existIds).map((r) => r.id);
+        if (bCmIds.length) {
+          const bPh = bCmIds.map(() => '?').join(',');
+          db.prepare(`DELETE FROM likes WHERE target_type = 'comment' AND target_id IN (${bPh})`).run(...bCmIds);
+        }
+        db.prepare(`DELETE FROM likes WHERE target_type = 'article' AND target_id IN (${placeholders})`).run(...existIds);
         db.prepare(`DELETE FROM comments WHERE article_id IN (${placeholders})`).run(...existIds);
         db.prepare(`DELETE FROM articles WHERE id IN (${placeholders})`).run(...existIds);
       }
@@ -795,9 +888,12 @@ app.get('/api/admin/comments', (req, res) => {
   }
   const articleId = typeof req.query.articleId === 'string' ? Number(req.query.articleId) : NaN;
   try {
+    // 含回复关系（parent_id / 被回复人昵称）与回复数（删除提示用；与 D1 版一致）
     let sql =
-      'SELECT c.id, c.article_id, a.title AS article_title, c.nickname, c.email, c.content, c.ip, c.created_at ' +
-      'FROM comments c LEFT JOIN articles a ON a.id = c.article_id';
+      'SELECT c.id, c.article_id, a.title AS article_title, c.nickname, c.email, c.content, c.ip, ' +
+      'c.parent_id, p.nickname AS parent_nickname, ' +
+      '(SELECT COUNT(*) FROM comments ch WHERE ch.parent_id = c.id) AS reply_count, c.created_at ' +
+      'FROM comments c LEFT JOIN articles a ON a.id = c.article_id LEFT JOIN comments p ON p.id = c.parent_id';
     const params = [];
     if (Number.isInteger(articleId) && articleId > 0) {
       sql += ' WHERE c.article_id = ?';
@@ -819,10 +915,19 @@ app.delete('/api/admin/comments/:id', requireAdminWrite, (req, res) => {
     return res.status(404).json({ message: '评论不存在或已被删除' });
   }
   try {
-    const row = db.prepare('SELECT id FROM comments WHERE id = ?').get(id);
+    const row = db.prepare('SELECT id, parent_id FROM comments WHERE id = ?').get(id);
     if (!row) return res.status(404).json({ message: '评论不存在或已被删除' });
-    db.prepare('DELETE FROM comments WHERE id = ?').run(id);
-    res.json({ success: true, message: '删除成功' });
+    // 级联：顶级评论连同其全部回复一并删除，并清理对应点赞（与 D1 版一致）
+    const childIds = db.prepare('SELECT id FROM comments WHERE parent_id = ?').all(id).map((r) => r.id);
+    const delIds = [id, ...childIds];
+    const delPh = delIds.map(() => '?').join(',');
+    db.prepare(`DELETE FROM likes WHERE target_type = 'comment' AND target_id IN (${delPh})`).run(...delIds);
+    db.prepare(`DELETE FROM comments WHERE id IN (${delPh})`).run(...delIds);
+    res.json({
+      success: true,
+      deleted: delIds.length,
+      message: childIds.length ? `删除成功（连同 ${childIds.length} 条回复）` : '删除成功',
+    });
   } catch (e) {
     console.error('[admin.comments.delete]', e);
     res.status(500).json({ message: '删除失败，请稍后重试' });

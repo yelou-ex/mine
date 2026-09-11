@@ -357,6 +357,49 @@ r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: '
 const dupFirst = r.status;
 r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: 'dup', content: 'CF重复测试ABC' } });
 check('REQ-30 60s 内重复 → 429', dupFirst === 200 && r.status === 429, `first=${dupFirst} second=${r.status}`);
+// [5.6] 回复评论与点赞（parent_id 一级嵌套 + likes 幂等切换；须在限流测试前执行以免占用 IP 配额）
+{
+  const cmList = await call('/api/articles/1/comments');
+  const topCm = cmList.data.comments[0];
+  check('评论列表含 parent_id / likes 字段', !!topCm && 'parent_id' in topCm && 'likes' in topCm, JSON.stringify(Object.keys(topCm || {})));
+
+  r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: '小华', content: '同意！', parent_id: 424242 } });
+  check('回复不存在的评论 → 404', r.status === 404, `got ${r.status} ${r.text}`);
+  r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: '小华', content: '同意！', parent_id: topCm.id } });
+  check('正常回复 → 200（返回新评论 id）', r.status === 200 && r.data.success && r.data.id > 0, `got ${r.status} ${r.text}`);
+  const replyId = r.data.id;
+  r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: 'deep', content: '二级', parent_id: replyId } });
+  check('多层回复（回复一条回复）→ 400', r.status === 400, `got ${r.status} ${r.text}`);
+  r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: '小华', content: '同意！', parent_id: topCm.id } });
+  check('重复回复（同 parent 同内容 60s）→ 429', r.status === 429, `got ${r.status}`);
+  r = await call('/api/articles/1/comments', { method: 'POST', body: { nickname: 'x', content: 'y', parent_id: 'abc' } });
+  check('parent_id 非整数 → 400', r.status === 400, `got ${r.status}`);
+
+  r = await call('/api/articles/1/like', { method: 'POST' });
+  check('文章点赞 → liked=true', r.status === 200 && r.data.liked === true && r.data.likes >= 1, `got ${r.text}`);
+  const likeAfter1 = r.data.likes;
+  r = await call('/api/articles/1/like', { method: 'POST' });
+  check('再次文章点赞 → 取消（计数-1）', r.status === 200 && r.data.liked === false && r.data.likes === likeAfter1 - 1, `got ${r.text}`);
+  r = await call('/api/articles/99999/like', { method: 'POST' });
+  check('点赞同不存在的文章 → 404', r.status === 404, `got ${r.status}`);
+
+  r = await call(`/api/comments/${topCm.id}/like`, { method: 'POST' });
+  check('评论点赞 → liked=true likes=1', r.status === 200 && r.data.liked === true && r.data.likes === 1, `got ${r.text}`);
+  r = await call(`/api/comments/${topCm.id}/like`, { method: 'POST' });
+  check('再次评论点赞 → 取消', r.status === 200 && r.data.liked === false && r.data.likes === 0, `got ${r.text}`);
+  r = await call('/api/comments/99999/like', { method: 'POST' });
+  check('点赞同不存在的评论 → 404', r.status === 404, `got ${r.status}`);
+
+  // 级联：回复被点赞后，删除顶级评论应连同回复与点赞一并清理
+  await call(`/api/comments/${replyId}/like`, { method: 'POST' });
+  const del = await call('/api/admin/comments/' + topCm.id, { method: 'DELETE', csrf: cmsf });
+  check('删除顶级评论 → 200（含级联提示）', del.status === 200 && /连同 1 条回复/.test(del.data.message || ''), `got ${del.status} ${del.text}`);
+  const cmAfter2 = await call('/api/articles/1/comments');
+  check('回复已级联删除', !cmAfter2.data.comments.some((c) => c.id === replyId), `n=${cmAfter2.data.count}`);
+  const likeLeft = db.prepare("SELECT COUNT(*) AS c FROM likes WHERE target_type='comment'").get();
+  check('被删评论/回复的点赞已清理', likeLeft.c === 0, `left=${likeLeft.c}`);
+}
+
 // REQ-29 级联删除（先于限流测试，避免占用 IP 限流配额）
 {
   const c2 = await call('/api/articles/2/comments', { method: 'POST', body: { nickname: 'c', content: 'will-be-cascade' } });

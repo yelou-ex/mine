@@ -547,10 +547,22 @@ export async function ensureSchema(env) {
       email      TEXT NOT NULL DEFAULT '',
       content    TEXT NOT NULL,
       ip         TEXT NOT NULL DEFAULT '',
+      parent_id  INTEGER NOT NULL DEFAULT 0,   -- 回复目标评论 id（0 = 顶级评论；仅允许一级嵌套）
       created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
       created_ms INTEGER NOT NULL DEFAULT (strftime('%s','now'))
     )`),
     env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_comments_article ON comments (article_id)`),
+    // 点赞（文章 / 评论）：按 IP 唯一，重复点赞幂等；target_type ∈ {article, comment}
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS likes (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      target_type TEXT NOT NULL,
+      target_id   INTEGER NOT NULL,
+      ip          TEXT NOT NULL DEFAULT '',
+      created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      created_ms  INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+      UNIQUE (target_type, target_id, ip)
+    )`),
+    env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_likes_target ON likes (target_type, target_id)`),
   ]);
   // 显式开启外键约束（与本地 SQLite 版一致），保证删除文章时级联清理评论
   // （后台删除接口另有显式清理评论的语句，此处为双保险；失败不阻断应用）
@@ -573,6 +585,11 @@ export async function ensureSchema(env) {
   if (!artCols.results.some((c) => c.name === 'updated_at')) {
     await env.DB.prepare("ALTER TABLE articles ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''").run();
     await env.DB.prepare("UPDATE articles SET updated_at = created_at WHERE updated_at = ''").run();
+  }
+  // 迁移：为旧库补 comments.parent_id 列（评论回复；likes 表由上方 CREATE TABLE IF NOT EXISTS 幂等创建）
+  const cmtCols = await env.DB.prepare('PRAGMA table_info(comments)').all();
+  if (!cmtCols.results.some((c) => c.name === 'parent_id')) {
+    await env.DB.prepare('ALTER TABLE comments ADD COLUMN parent_id INTEGER NOT NULL DEFAULT 0').run();
   }
   await env.DB.batch([
     env.DB.prepare("UPDATE articles SET link = 'introduce.html' WHERE title = '个人基本信息' AND link = ''"),
