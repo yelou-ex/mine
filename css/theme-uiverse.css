@@ -424,22 +424,35 @@ a:hover {
   background: var(--card-stripe);
 }
 
-/* 点赞按钮（卡片内） */
+/* 点赞按钮：原样照抄 UI/点赞.txt（catraco 粉色爱心），不做黑白化。
+   动画 keyframes（keyframes-svg-filled / keyframes-svg-celebrate）已写在 article.html 内联样式里；
+   这里只管容器布局，让点赞在卡片里正常排布，颜色完全交给 article.html。 */
 .like-btn {
-  background: var(--card-stripe);
+  position: relative;
+  overflow: hidden;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 4px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: .3s;
   color: var(--card-text);
-  border: 1px solid var(--card-head);
-  border-radius: 999px;
+  font-size: 13px;
 }
-.like-btn:hover {
-  background: var(--card-text);
-  color: var(--card);
-  border-color: var(--card-text);
+.like-btn .heart-svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
 }
-.like-btn.on {
-  background: var(--card-text);
-  color: var(--card);
-  border-color: var(--card-text);
+.like-btn .heart-count {
+  display: inline-block;
+  padding-left: 24px;
+  position: relative;
+  z-index: 1;
 }
 
 /* introduce.html 页头（黑白，与卡片同色系） */

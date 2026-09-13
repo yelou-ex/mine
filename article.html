@@ -39,32 +39,34 @@
         nav ul li a { color: var(--text); font-weight: 500; padding: 5px 10px; border-radius: 4px; transition: background-color 0.3s; }
         nav ul li a:hover { background-color: var(--accent); color: var(--accent-contrast); }
         .article-wrap {
-            background-color: var(--card); opacity: 1;
-            border-radius: 30px; box-shadow: var(--shadow);
+            background-color: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent); opacity: 1;
+            border-radius: 30px; box-shadow: var(--card-shadow);
             padding: 36px 40px; margin: 30px 0;
             border: 1px solid var(--border);
+            color: var(--card-text);
         }
-        .article-title { color: var(--text); font-size: 26px; margin-bottom: 12px; }
-        .article-meta { color: var(--muted); font-size: 14px; margin-bottom: 8px; }
+        .article-title { color: var(--card-text); font-size: 26px; margin-bottom: 12px; }
+        .article-meta { color: var(--card-muted); font-size: 14px; margin-bottom: 8px; }
         .article-tags { margin-bottom: 22px; }
         .article-tags .tag {
-            display: inline-block; background-color: var(--table-stripe); color: var(--text);
+            display: inline-block; background-color: var(--card-stripe); color: var(--card-text);
             border-radius: 4px; padding: 2px 10px; font-size: 12px; margin: 0 4px 4px 0;
-            border: 1px solid var(--border);
+            border: 1px solid var(--card-head);
         }
-        .article-body { border-top: 1px solid var(--border); padding-top: 24px; font-size: 15.5px; color: var(--text); word-break: break-word; }
+        .article-body { border-top: 1px solid var(--card-head); padding-top: 24px; font-size: 15.5px; color: var(--card-text); word-break: break-word; }
         .article-body img { max-width: 100%; height: auto; border-radius: 6px; }
-        .article-body a { word-break: break-all; color: var(--link); }
+        .article-body a { word-break: break-all; color: var(--card-text); text-decoration: underline; }
         .article-body blockquote {
-            border-left: 4px solid var(--text); background: var(--table-stripe);
-            padding: 10px 16px; margin: 14px 0; color: var(--muted);
+            border-left: 4px solid var(--card-text); background: var(--card-stripe);
+            padding: 10px 16px; margin: 14px 0; color: var(--card-muted);
         }
         .article-body pre {
-            background: var(--code-bg); color: var(--code-text); border-radius: 6px;
+            background: #0d0d0d; color: #f5f5f5; border-radius: 6px;
             padding: 14px 16px; overflow-x: auto; margin: 14px 0;
         }
         .article-body code { font-family: Consolas, monospace; }
-        .article-body h1,.article-body h2,.article-body h3,.article-body h4 { color: var(--text); margin: 20px 0 10px; }
+        .article-body h1,.article-body h2,.article-body h3,.article-body h4 { color: var(--card-text); margin: 20px 0 10px; }
+        .article-body p,.article-body li { color: var(--card-text); }
         /* 文内目录锚点跳转：平滑滚动 */
         html { scroll-behavior: smooth; }
         /* 双栏布局（PC ≥769px）：文章占满左侧，目录模块为右侧独立卡片；
@@ -76,106 +78,185 @@
             .layout { display: grid; grid-template-columns: minmax(0, 1fr) 232px; gap: 28px; align-items: stretch; }
             .toc-card {
                 position: sticky; top: 20px;
-                background: var(--card); opacity: 1;
-                border-radius: 30px; box-shadow: var(--shadow);
+                background: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent); opacity: 1;
+                border-radius: 30px; box-shadow: var(--card-shadow);
                 padding: 14px 16px;
                 max-height: calc(100vh - 40px); overflow-y: auto;
                 border: 1px solid var(--border);
+                color: var(--card-text);
             }
             .toc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-            .toc-title { font-size: 15px; font-weight: 600; color: var(--text); }
+            .toc-title { font-size: 15px; font-weight: 600; color: var(--card-text); }
             /* 卡片上的「评论」「首页」按钮（共用胶囊样式）：评论 → 页内锚点 #commentWrap，首页 → index.html */
             .toc-actions { display: flex; gap: 6px; }
             .toc-btn {
-                font-size: 12px; color: var(--text); background: var(--table-stripe);
+                font-size: 12px; color: var(--card-text); background: var(--card-stripe);
                 padding: 3px 10px; border-radius: 4px; text-decoration: none;
                 transition: background-color .2s, color .2s;
-                border: 1px solid var(--border);
+                border: 1px solid var(--card-text);
             }
-            .toc-btn:hover { background: var(--accent); color: var(--accent-contrast); }
+            .toc-btn:hover { background: var(--card-text); color: var(--card-stripe); }
             .toc-list a {
                 display: block; padding: 4px 8px; margin: 1px 0;
-                color: var(--muted); font-size: 13.5px; line-height: 1.45;
+                color: var(--card-muted); font-size: 13.5px; line-height: 1.45;
                 border-left: 2px solid transparent; border-radius: 0 4px 4px 0;
                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
                 transition: color .2s, border-color .2s, background-color .2s;
             }
-            .toc-list a:hover { color: var(--text); }
+            .toc-list a:hover { color: var(--card-text); }
             .toc-list a.lvl-3 { padding-left: 22px; font-size: 12.5px; }
             .toc-list a.lvl-4 { padding-left: 36px; font-size: 12px; }
-            .toc-list a.active { color: var(--text); border-left-color: var(--text); background: var(--table-stripe); }
+            .toc-list a.active { color: var(--card-text); border-left-color: var(--card-text); background: var(--card-stripe); }
         }
         /* 移动端（≤768px）：不展示目录模块，单栏居中 */
         @media (max-width: 768px) {
             .toc-col { display: none; }
         }
-        /* 表格（Markdown GFM 表格 / HTML 表格共用） */
+        /* 表格（Markdown GFM 表格 / HTML 表格共用，跟随卡片底色） */
         .article-body table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14.5px; }
-        .article-body th, .article-body td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; color: var(--text); }
-        .article-body th { background: var(--table-head); color: var(--text); font-weight: 600; }
-        .article-body tr:nth-child(even) td { background: var(--table-stripe); }
-        .article-body caption { caption-side: bottom; color: var(--muted); font-size: 13px; padding-top: 6px; }
-        .article-body .md-fallback { background: var(--table-stripe); padding: 14px 16px; border-radius: 6px; white-space: pre-wrap; font-size: 14px; color: var(--text); }
+        .article-body th, .article-body td { border: 1px solid var(--card-head); padding: 8px 12px; text-align: left; color: var(--card-text); }
+        .article-body th { background: var(--card-head); color: var(--card-text); font-weight: 600; }
+        .article-body tr:nth-child(even) td { background: var(--card-stripe); }
+        .article-body caption { caption-side: bottom; color: var(--card-muted); font-size: 13px; padding-top: 6px; }
+        .article-body .md-fallback { background: var(--card-stripe); padding: 14px 16px; border-radius: 6px; white-space: pre-wrap; font-size: 14px; color: var(--card-text); }
         .table-scroll { overflow-x: auto; }
         .back-bar { margin: 24px 0 0; }
         .back-bar a { color: var(--muted); font-size: 14px; }
         .back-bar a:hover { color: var(--text); }
         footer { background-color: var(--footer-bg); color: var(--footer-text); padding: 30px 0; text-align: center; }
         .copyright { font-size: 14px; }
-        .post-tip { background-color: var(--card); border-radius: 30px; padding: 40px 20px; text-align: center; color: var(--muted); margin: 30px 0; border: 1px solid var(--border); box-shadow: var(--shadow); }
-        /* 评论区（REQ-25 / REQ-27） */
-        /* 目录卡片「评论」按钮锚点 #commentWrap 的落地偏移（与 sticky 卡片顶距一致） */
+        .post-tip { background-color: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent); border-radius: 30px; padding: 40px 20px; text-align: center; color: var(--card-muted); margin: 30px 0; border: 1px solid var(--border); box-shadow: var(--card-shadow); }
+        /* 评论区（REQ-25 / REQ-27），卡片内元素跟随卡片底色 */
         #commentWrap { scroll-margin-top: 20px; }
-        .comments-wrap { background-color: var(--card); opacity: 1; border-radius: 30px; box-shadow: var(--shadow); padding: 24px 40px; margin: 0 0 30px; border: 1px solid var(--border); }
-        .comments-title { color: var(--text); font-size: 18px; margin: 0 0 14px; }
-        .comments-title .count { color: var(--muted); font-size: 14px; font-weight: normal; }
-        .comment-item { border-top: 1px solid var(--border); padding: 14px 0; }
+        .comments-wrap { background-color: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent); opacity: 1; border-radius: 30px; box-shadow: var(--card-shadow); padding: 24px 40px; margin: 0 0 30px; border: 1px solid var(--border); color: var(--card-text); }
+        .comments-title { color: var(--card-text); font-size: 18px; margin: 0 0 14px; }
+        .comments-title .count { color: var(--card-muted); font-size: 14px; font-weight: normal; }
+        .comment-item { border-top: 1px solid var(--card-head); padding: 14px 0; }
         .comment-item:first-child { border-top: none; }
-        .comment-head { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-        .comment-head .nickname { color: var(--text); font-weight: bold; margin-right: 8px; }
-        .comment-content { font-size: 14.5px; color: var(--text); word-break: break-word; white-space: pre-wrap; }
-        .comment-empty { color: var(--muted); font-size: 14px; padding: 10px 0; }
-        .comment-form { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 18px; }
+        .comment-head { font-size: 13px; color: var(--card-muted); margin-bottom: 6px; }
+        .comment-head .nickname { color: var(--card-text); font-weight: bold; margin-right: 8px; }
+        .comment-content { font-size: 14.5px; color: var(--card-text); word-break: break-word; white-space: pre-wrap; }
+        .comment-empty { color: var(--card-muted); font-size: 14px; padding: 10px 0; }
+        .comment-form { border-top: 1px solid var(--card-head); margin-top: 18px; padding-top: 18px; }
         .comment-form .row { display: flex; gap: 10px; margin-bottom: 10px; }
-        .comment-form input, .comment-form textarea { flex: 1; min-width: 0; border: 2px solid var(--text); border-radius: 2px; padding: 8px 10px; font-size: 14px; font-family: inherit; background: var(--card); color: var(--text); box-shadow: 4px 4px 0 var(--accent); }
-        .comment-form input:focus, .comment-form textarea:focus { outline: none; border-color: var(--card); background: var(--accent); color: var(--accent-contrast); }
+        /* 评论输入框：沿用原 search白 风格（白底黑框、focus 反色） */
+        .comment-form input, .comment-form textarea { flex: 1; min-width: 0; border: 4px solid #000; border-radius: 0; padding: 8px 10px; font-size: 14px; font-family: inherit; background: #fff; color: #000; box-shadow: 8px 8px 0 #000; transition: all .3s ease; }
+        .comment-form input:hover, .comment-form textarea:hover { transform: translate(-4px, -4px); box-shadow: 12px 12px 0 #000; }
+        .comment-form input:focus, .comment-form textarea:focus { outline: none; border-color: #fff; background: #000; color: #fff; }
+        .comment-form input::placeholder, .comment-form textarea::placeholder { color: #888; }
+        .comment-form input:focus::placeholder, .comment-form textarea:focus::placeholder { color: #fff; }
         .comment-form .field-name { flex: 0 0 42%; }
         .comment-form textarea { resize: vertical; min-height: 80px; }
-        .comment-form .btn-submit { background: var(--accent); color: var(--accent-contrast); border: 2px solid var(--accent); border-radius: 2px; padding: 8px 22px; font-size: 14px; cursor: pointer; touch-action: manipulation; transform: skew(-18deg); box-shadow: 4px 4px 0 var(--border); }
-        .comment-form .btn-submit:hover { background: var(--card); color: var(--text); border-color: var(--text); transform: skew(-18deg) translate(-2px, -2px); box-shadow: 6px 6px 0 var(--accent); }
-        .comment-form .btn-submit:disabled { background: var(--muted); color: var(--card); cursor: not-allowed; }
-        .comment-msg { font-size: 13px; margin-top: 8px; min-height: 16px; color: var(--muted); }
+        /* 主要按钮：常态黑底白字，hover 背景与文字同时反成白底黑字 */
+        .comment-form .btn-submit, .reply-submit {
+            background: var(--accent); color: var(--accent-contrast);
+            border: 2px solid var(--accent); border-radius: 2px; padding: 8px 22px; font-size: 14px;
+            cursor: pointer; touch-action: manipulation;
+            transform: skew(-18deg); box-shadow: 4px 4px 0 var(--border);
+            transition: background-color .2s, color .2s, transform .2s, box-shadow .2s, border-color .2s;
+        }
+        .comment-form .btn-submit:hover, .reply-submit:hover {
+            background: var(--accent-contrast); color: var(--accent);
+            border-color: var(--accent-contrast);
+            transform: skew(-18deg) translate(-2px, -2px);
+            box-shadow: 6px 6px 0 var(--accent);
+        }
+        .comment-form .btn-submit:disabled, .reply-submit:disabled {
+            background: var(--muted); color: #fff; cursor: not-allowed;
+            transform: skew(-18deg);
+        }
+        .comment-msg { font-size: 13px; margin-top: 8px; min-height: 16px; color: var(--card-muted); }
         .comment-msg.error { color: #d94b4b; }
         .comment-msg.ok { color: #2f9e63; }
-        /* 点赞按钮（文章 meta 行 + 评论操作行共用） */
+        /* 点赞按钮：原样照抄 UI/点赞.txt（catraco 粉色爱心），不做黑白化 */
         .like-btn {
-            font-size: 12.5px; color: var(--text); background: var(--card);
-            border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; cursor: pointer;
-            transition: color .2s, background-color .2s, border-color .2s;
+            --heart-color: rgb(255, 91, 137);
+            position: relative;
+            overflow: hidden;
+            min-width: 34px; min-height: 34px;
+            padding: 4px 10px;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: .3s;
+            color: var(--card-text);
+            font-size: 13px;
         }
-        .like-btn:hover { color: var(--accent-contrast); border-color: var(--accent); background: var(--accent); }
-        .like-btn.on { color: var(--accent-contrast); background: var(--accent); border-color: var(--accent); }
-        .like-btn.on:hover { background: var(--card); color: var(--text); border-color: var(--text); }
+        /* 爱心 SVG：outline 常态可见，filled 点击后弹跳填充（keyframes 原样照抄） */
+        .like-btn .heart-svg {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 18px;
+            height: 18px;
+            fill: var(--heart-color);
+            opacity: 0;
+        }
+        .like-btn .heart-svg.outline {
+            opacity: 1;
+            fill: none;
+            stroke: var(--heart-color);
+            stroke-width: 2px;
+        }
+        .like-btn .heart-count {
+            display: inline-block;
+            padding-left: 24px;
+            position: relative;
+            z-index: 1;
+            transition: color .2s;
+        }
+        /* 已赞：outline 淡出，filled + celebrate 播放（对应原 UI 的 checked 状态） */
+        .like-btn.on .heart-svg.outline {
+            opacity: 0;
+        }
+        .like-btn.on .heart-svg.filled {
+            opacity: 1;
+            animation: keyframes-svg-filled 1s;
+        }
+        .like-btn.on .heart-svg.celebrate {
+            opacity: 1;
+            animation: keyframes-svg-celebrate .5s;
+            animation-fill-mode: forwards;
+        }
+        .like-btn:hover .heart-svg {
+            filter: brightness(1.2);
+        }
+        /* keyframes 原样照抄 UI/点赞.txt */
+        @keyframes keyframes-svg-filled {
+            0% { transform: translateY(-50%) scale(0); }
+            25% { transform: translateY(-50%) scale(1.2); }
+            50% { transform: translateY(-50%) scale(1); filter: brightness(1.5); }
+            100% { transform: translateY(-50%) scale(1); }
+        }
+        @keyframes keyframes-svg-celebrate {
+            0% { transform: translateY(-50%) scale(0); opacity: 1; }
+            50% { opacity: 1; filter: brightness(1.5); }
+            100% { transform: translateY(-50%) scale(1.4); opacity: 0; }
+        }
         .article-like { margin-left: 10px; vertical-align: middle; }
         /* 评论操作行：点赞 + 回复（回复仅顶级评论显示） */
         .comment-actions { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
-        .cm-reply { font-size: 12.5px; color: var(--muted); background: none; border: 1px solid var(--border); cursor: pointer; padding: 2px 4px; border-radius: 4px; }
-        .cm-reply:hover { color: var(--accent-contrast); background: var(--accent); border-color: var(--accent); }
+        .cm-reply { font-size: 12.5px; color: var(--card-text); background: var(--card-stripe); border: 2px solid var(--card-text); cursor: pointer; padding: 4px 14px; border-radius: 999px; transition: background-color .2s, color .2s; }
+        .cm-reply:hover { color: var(--card-stripe); background: var(--card-text); }
         /* 嵌套回复（一级）：缩进 + 弱化样式 */
-        .comment-replies { margin-top: 10px; padding-left: 14px; border-left: 2px solid var(--border); }
+        .comment-replies { margin-top: 10px; padding-left: 14px; border-left: 2px solid var(--card-head); }
         .comment-item.reply .comment-head { font-size: 12px; }
         .comment-item.reply .comment-content { font-size: 13.5px; }
         /* 内联回复表单 */
-        .reply-form { margin-top: 10px; padding: 10px 12px; background: var(--table-stripe); border-radius: 6px; }
+        .reply-form { margin-top: 10px; padding: 10px 12px; background: var(--card-stripe); border-radius: 6px; border: 1px solid var(--card-head); }
         .reply-form input, .reply-form textarea {
-            width: 100%; box-sizing: border-box; border: 2px solid var(--text); border-radius: 2px;
+            width: 100%; box-sizing: border-box; border: 4px solid #000; border-radius: 0;
             padding: 7px 9px; font-size: 13px; font-family: inherit; margin-bottom: 8px;
-            background: var(--card); color: var(--text);
+            background: #fff; color: #000; transition: all .2s ease;
         }
+        .reply-form input:hover, .reply-form textarea:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 #000; }
+        .reply-form input:focus, .reply-form textarea:focus { outline: none; border-color: #fff; background: #000; color: #fff; }
         .reply-form textarea { resize: vertical; min-height: 56px; }
         .reply-btns { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .reply-cancel { font-size: 12.5px; color: var(--text); background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 6px 14px; cursor: pointer; }
-        .reply-cancel:hover { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+        .reply-cancel { font-size: 12.5px; color: var(--card-text); background: var(--card-stripe); border: 2px solid var(--card-text); border-radius: 999px; padding: 4px 14px; cursor: pointer; transition: background-color .2s, color .2s; }
+        .reply-cancel:hover { color: var(--card-stripe); background: var(--card-text); }
         /* 手机端适配（≤ 768px） */
         @media (max-width: 768px) {
             .header-content { flex-direction: column; gap: 12px; }
@@ -467,7 +548,12 @@
                             '<article class="article-wrap">' +
                             '<h1 class="article-title">' + esc(a.title) + '</h1>' +
                             '<div class="article-meta">发布于: ' + fmtDate(a.created_at) + ' | 分类: ' + esc(a.category) + (a.format === 'markdown' ? ' | Markdown' : '') +
-                            ' <button type="button" class="like-btn article-like" id="articleLikeBtn"></button></div>' +
+                            ' <button type="button" class="like-btn article-like" id="articleLikeBtn">' +
+                            '<svg class="heart-svg outline" viewBox="0 0 24 24" width="18" height="18"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>' +
+                            '<svg class="heart-svg filled" viewBox="0 0 24 24" width="18" height="18"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>' +
+                            '<svg class="heart-svg celebrate" viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="11"/></svg>' +
+                            '<span class="heart-count" id="articleLikeInner"></span>' +
+                            '</button></div>' +
                             (tags ? '<div class="article-tags">' + tags + '</div>' : '') +
                             '<div class="table-scroll"><div class="article-body">' + bodyHtml + '</div></div>' +
                             '</article>';
@@ -515,10 +601,15 @@
             var justPostedId = 0;    // 回复成功后定位到该评论（含嵌套层级）
             var repliesByParent = {}; // 评论 id → 其回复数组（renderComments 填充，commentNode 读取）
             function commentNode(c, isReply) {
+                var heartSvg =
+                    '<svg class="heart-svg outline" viewBox="0 0 24 24" width="18" height="18"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>' +
+                    '<svg class="heart-svg filled" viewBox="0 0 24 24" width="18" height="18"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>' +
+                    '<svg class="heart-svg celebrate" viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="11"/></svg>';
                 var acts = '<div class="comment-actions">' +
                     '<button type="button" class="like-btn cm-like' +
                     (localStorage.getItem('yslike_c_' + c.id) === '1' ? ' on' : '') +
-                    '" data-id="' + c.id + '"><span id="likeC_' + c.id + '">👍 ' + (c.likes || 0) + '</span></button>';
+                    '" data-id="' + c.id + '">' + heartSvg +
+                    '<span class="heart-count" id="likeC_' + c.id + '">' + (c.likes || 0) + '</span></button>';
                 if (!isReply) acts += '<button type="button" class="cm-reply" data-id="' + c.id + '">回复</button>';
                 acts += '</div>';
                 var inner =
@@ -640,9 +731,18 @@
                 if (!btn) return;
                 var likes = Number(initialLikes) || 0;
                 var liked = localStorage.getItem('yslike_a_' + id) === '1';
+                var inner = document.getElementById('articleLikeInner');
                 function paint() {
-                    btn.textContent = '👍 ' + (liked ? '已赞' : '点赞') + '（' + likes + '）';
+                    if (inner) inner.textContent = (liked ? '已赞' : '点赞') + '（' + likes + '）';
                     btn.classList.toggle('on', liked);
+                    // 重新触发挥发：移除后强制 reflow 再添加，保证每次点赞都播放动画
+                    if (liked) {
+                        btn.querySelectorAll('.heart-svg.filled, .heart-svg.celebrate').forEach(function (s) {
+                            s.style.animation = 'none';
+                            void s.offsetWidth; // 强制 reflow
+                            s.style.animation = '';
+                        });
+                    }
                 }
                 paint();
                 btn.addEventListener('click', function () {
@@ -668,7 +768,15 @@
                         localStorage.setItem('yslike_c_' + cmId, r.data.liked ? '1' : '0');
                         btn.classList.toggle('on', !!r.data.liked);
                         var n = document.getElementById('likeC_' + cmId);
-                        if (n) n.textContent = '👍 ' + (Number(r.data.likes) || 0);
+                        if (n) n.textContent = String(Number(r.data.likes) || 0);
+                        // 重新触发心跳动画
+                        if (r.data.liked) {
+                            btn.querySelectorAll('.heart-svg.filled, .heart-svg.celebrate').forEach(function (s) {
+                                s.style.animation = 'none';
+                                void s.offsetWidth;
+                                s.style.animation = '';
+                            });
+                        }
                     })
                     .catch(function () {});
             }
