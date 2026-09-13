@@ -9,6 +9,9 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://yelou.pages.dev/">
     <title>yelou的个人博客 - 生活 · 学习 · 成长记录</title>
+    <script src="js/theme-init.js"></script>
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/theme-uiverse.css">
     <style>
         /* 全局样式 */
         * {
@@ -19,10 +22,6 @@
         }
         
         body {
-            background-image: url("picture/d3SJaPgZhqMVOQv.thumb.png");
-            background-size: cover;
-			background-attachment: fixed;
-			background-repeat: no-repeat;
             line-height: 1.6;
             min-height: 100vh;
             display: flex;
@@ -34,11 +33,11 @@
         
         a {
             text-decoration: none;
-            color: #3498db;
+            color: var(--link);
         }
         
         a:hover {
-            color: #2980b9;
+            color: var(--link-hover);
         }
         
         .container {
@@ -49,8 +48,8 @@
         
         /* 头部样式 */
         header {
-            background-color: #fff;
-			opacity: 0.8;
+            background-color: var(--header-bg);
+			opacity: 0.92;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             padding: 20px 0;
         }
@@ -64,7 +63,7 @@
         .logo {
             font-size: 24px;
             font-weight: bold;
-            color: #2c3e50;
+            color: var(--text);
             margin: 0;  /* h1.logo 复位浏览器默认外边距 */
         }
         
@@ -78,7 +77,7 @@
         }
         
         nav ul li a {
-            color: #2c3e50;
+            color: var(--text);
             font-weight: 500;
             padding: 5px 10px;
             border-radius: 4px;
@@ -86,7 +85,8 @@
         }
         
         nav ul li a:hover {
-            background-color: #ecf0f1;
+            background-color: var(--accent);
+            color: var(--accent-contrast);
         }
         
         /* 主要内容区域 */
@@ -102,41 +102,54 @@
         }
         
         .post {
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            background-color: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);
+            border-radius: 30px;
+            box-shadow: var(--card-shadow);
             padding: 20px;
             margin-bottom: 20px;
+            border: 1px solid var(--border);
+            color: var(--card-text);
         }
         
         .post-title {
-            color: #2c3e50;
+            color: var(--card-text);
             margin-bottom: 10px;
         }
         
+        .post-title a {
+            color: var(--card-text);
+        }
+        
         .post-meta {
-            color: #7f8c8d;
+            color: var(--card-muted);
             font-size: 14px;
             margin-bottom: 15px;
         }
         
         .post-content {
             margin-bottom: 15px;
+            color: var(--card-text);
         }
         
         .read-more {
             display: inline-block;
-            background-color: #3498db;
-            color: #fff;
+            background-color: var(--accent);
+            color: var(--accent-contrast);
             padding: 8px 15px;
-            border-radius: 4px;
+            border-radius: 2px;
             font-weight: 500;
-            transition: background-color 0.3s;
+            border: 2px solid var(--accent);
+            transform: skew(-18deg);
+            transition: background-color 0.2s, color 0.2s, transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+            box-shadow: 4px 4px 0 var(--border);
         }
         
         .read-more:hover {
-            background-color: #2980b9;
-            color: #fff;
+            background-color: var(--accent-contrast);
+            color: var(--accent);
+            border-color: var(--accent-contrast);
+            transform: skew(-18deg) translate(-2px, -2px);
+            box-shadow: 6px 6px 0 var(--accent);
         }
         
         /* 侧边栏 */
@@ -145,18 +158,20 @@
         }
         
         .sidebar-widget {
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            background-color: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);
+            border-radius: 30px;
+            box-shadow: var(--card-shadow);
             padding: 20px;
             margin-bottom: 20px;
+            border: 1px solid var(--border);
+            color: var(--card-text);
         }
         
         .widget-title {
-            color: #2c3e50;
+            color: var(--card-text);
             margin-bottom: 15px;
             padding-bottom: 10px;
-            border-bottom: 1px solid #ecf0f1;
+            border-bottom: 1px solid var(--card-stripe);
         }
         
         .about-me {
@@ -172,36 +187,12 @@
             object-fit: cover;
         }
         
-        .categories ul {
-            list-style: none;
-        }
-        
-        .categories ul li {
-            margin-bottom: 10px;
-        }
-        
-        .categories ul li a {
-            display: block;
-            padding: 5px 10px;
-            background-color: #ecf0f1;
-            border-radius: 4px;
-            transition: background-color 0.3s;
-        }
-        
-        .categories ul li a:hover {
-            background-color: #d5dbdb;
-        }
-        
-        .categories ul li a.active {
-            background-color: #3498db;
-            color: #fff;
-        }
-        
         .recent-posts li {
             margin-bottom: 10px;
             padding-bottom: 10px;
-            border-bottom: 1px solid #ecf0f1;
+            border-bottom: 1px solid var(--card-stripe);
             list-style: none;
+            color: var(--card-text);
         }
         
         .recent-posts li:last-child {
@@ -211,38 +202,40 @@
         }
         
         .recent-posts li a {
-            color: #2c3e50;
+            color: var(--card-text);
         }
         
         .recent-posts li a:hover {
-            color: #3498db;
+            color: var(--card-muted);
         }
         
         /* 标签 */
         .post-tags .tag {
             display: inline-block;
-            background-color: #eaf2f8;
-            color: #2980b9;
+            background-color: var(--card-stripe);
+            color: var(--card-text);
             border-radius: 4px;
             padding: 2px 8px;
             font-size: 12px;
             margin: 0 4px 4px 0;
+            border: 1px solid var(--card-head);
         }
         
         /* 加载提示与空状态 */
         .post-tip {
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            background-color: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);
+            border-radius: 30px;
+            box-shadow: var(--card-shadow);
             padding: 40px 20px;
             text-align: center;
-            color: #7f8c8d;
+            color: var(--card-muted);
+            border: 1px solid var(--border);
         }
         
         /* 页脚 */
         footer {
-            background-color: #2c3e50;
-            color: #ecf0f1;
+            background-color: var(--footer-bg);
+            color: var(--footer-text);
             padding: 30px 0;
             text-align: center;
         }
@@ -255,7 +248,7 @@
         }
         
         .footer-links a {
-            color: #ecf0f1;
+            color: var(--footer-text);
             margin: 0 10px;
         }
         
@@ -264,18 +257,19 @@
         }
         
         .copyright {
-            border-top: 1px solid #34495e;
+            border-top: 1px solid var(--border);
             padding-top: 20px;
             font-size: 14px;
         }
         
         /* 搜索框样式 */
         .search-bar {
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            background-color: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);
+            border-radius: 30px;
+            box-shadow: var(--card-shadow);
             padding: 16px 20px;
             margin-bottom: 20px;
+            border: 1px solid var(--border);
         }
         .search-box {
             display: flex;
@@ -284,40 +278,63 @@
         .search-input {
             flex: 1;
             padding: 10px 14px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
+            border: 4px solid #000;
+            border-radius: 0;
             font-size: 14px;
             outline: none;
-            transition: border-color 0.3s;
+            transition: all 0.3s ease;
+            background: #fff;
+            color: #000;
+            box-shadow: 8px 8px 0 #000;
+        }
+        .search-input::placeholder {
+            color: #888;
+        }
+        .search-input:hover {
+            transform: translate(-4px, -4px);
+            box-shadow: 12px 12px 0 #000;
         }
         .search-input:focus {
-            border-color: #3498db;
+            background: #000;
+            color: #fff;
+            border-color: #fff;
+        }
+        .search-input:focus::placeholder {
+            color: #fff;
         }
         .search-btn {
             padding: 10px 20px;
-            background-color: #3498db;
-            color: #fff;
-            border: none;
-            border-radius: 6px;
+            background-color: var(--accent);
+            color: var(--accent-contrast);
+            border: 2px solid var(--accent);
+            border-radius: 2px;
             cursor: pointer;
             font-size: 14px;
-            transition: background-color 0.3s;
+            transform: skew(-18deg);
+            box-shadow: 4px 4px 0 var(--border);
+            transition: background-color .2s, color .2s, transform .2s, box-shadow .2s, border-color .2s;
         }
         .search-btn:hover {
-            background-color: #2980b9;
+            background-color: var(--accent-contrast);
+            color: var(--accent);
+            border-color: var(--accent-contrast);
+            transform: skew(-18deg) translate(-2px, -2px);
+            box-shadow: 6px 6px 0 var(--accent);
         }
         .clear-btn {
             padding: 10px 16px;
-            background-color: #95a5a6;
-            color: #fff;
-            border: none;
-            border-radius: 6px;
+            background-color: var(--card-stripe);
+            color: var(--card-text);
+            border: 2px solid var(--card-text);
+            border-radius: 2px;
             cursor: pointer;
             font-size: 14px;
-            transition: background-color 0.3s;
+            transition: background-color 0.2s, color 0.2s;
         }
         .clear-btn:hover {
-            background-color: #7f8c8d;
+            background-color: var(--card-text);
+            color: var(--card-stripe);
+            border-color: var(--card-text);
         }
         .active-filters {
             margin-top: 10px;
@@ -330,10 +347,11 @@
             align-items: center;
             gap: 6px;
             padding: 4px 10px;
-            background-color: #eaf2f8;
-            color: #2980b9;
+            background-color: var(--card-stripe);
+            color: var(--card-text);
             border-radius: 4px;
             font-size: 13px;
+            border: 1px solid var(--card-head);
         }
         .filter-tag .remove {
             cursor: pointer;
@@ -353,21 +371,21 @@
         .tag-item {
             display: inline-block;
             padding: 4px 12px;
-            background-color: #eaf2f8;
-            color: #2980b9;
+            background-color: var(--card-stripe);
+            color: var(--card-text);
             border-radius: 20px;
             font-size: 13px;
             cursor: pointer;
             transition: all 0.3s;
-            border: 1px solid transparent;
+            border: 1px solid var(--card-head);
         }
         .tag-item:hover {
-            background-color: #d5dbdb;
-            border-color: #3498db;
+            background-color: var(--card-head);
+            border-color: var(--card-text);
         }
         .tag-item.active {
-            background-color: #3498db;
-            color: #fff;
+            background-color: var(--card-text);
+            color: var(--card);
         }
         .tag-count {
             font-size: 11px;
@@ -400,11 +418,12 @@
         /* 手机端的分类和标签筛选栏（默认隐藏） */
         .mobile-filter-bar {
             display: none;
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            background-color: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);
+            border-radius: 30px;
+            box-shadow: var(--card-shadow);
             padding: 12px 16px;
             margin-bottom: 12px;
+            border: 1px solid var(--border);
         }
         .mobile-filter-row {
             display: flex;
@@ -414,36 +433,90 @@
         }
         .mobile-filter-label {
             font-size: 14px;
-            color: #7f8c8d;
+            color: var(--card-muted);
             margin-right: 8px;
         }
         .mobile-cat-btn {
             padding: 6px 14px;
-            background-color: #ecf0f1;
-            color: #2c3e50;
+            background-color: var(--card-stripe);
+            color: var(--card-text);
             border-radius: 20px;
             font-size: 13px;
             cursor: pointer;
             transition: all 0.3s;
-            border: 1px solid transparent;
+            border: 1px solid var(--card-head);
         }
         .mobile-cat-btn:hover, .mobile-cat-btn.active {
-            background-color: #3498db;
-            color: #fff;
+            background-color: var(--card-text);
+            color: var(--card);
         }
         .mobile-tag-btn {
             padding: 4px 12px;
-            background-color: #eaf2f8;
-            color: #2980b9;
+            background-color: var(--card-stripe);
+            color: var(--card-text);
             border-radius: 20px;
             font-size: 12px;
             cursor: pointer;
             transition: all 0.3s;
-            border: 1px solid transparent;
+            border: 1px solid var(--card-head);
         }
         .mobile-tag-btn:hover, .mobile-tag-btn.active {
-            background-color: #3498db;
-            color: #fff;
+            background-color: var(--card-text);
+            color: var(--card);
+        }
+
+        /* 顶部分类切换（UI/分类.txt cir-tabs 风格，黑白化，放在页头「关于我」旁） */
+        .top-cat-tabs {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px;
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            box-shadow:
+                0 1px 1px rgba(14, 17, 22, 0.04),
+                0 20px 40px -24px rgba(14, 17, 22, 0.18);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+        html[data-theme='dark'] .top-cat-tabs {
+            background: rgba(0, 0, 0, 0.5);
+        }
+        .top-cat-tabs .top-cat {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 30px;
+            padding: 0 14px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--muted);
+            cursor: pointer;
+            white-space: nowrap;
+            transition:
+                background-color 220ms cubic-bezier(0.22, 1, 0.36, 1),
+                color 220ms cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .top-cat-tabs .top-cat:hover {
+            color: var(--text);
+        }
+        .top-cat-tabs .top-cat.active {
+            background: var(--accent);
+            color: var(--accent-contrast);
+            box-shadow:
+                0 1px 1px rgba(14, 17, 22, 0.06),
+                0 8px 18px -10px rgba(14, 17, 22, 0.5);
+        }
+        /* 页头操作区横向排列：nav + 分类 + 开关 */
+        .header-actions {
+            gap: 16px;
+        }
+        @media (max-width: 768px) {
+            .top-cat-tabs {
+                display: none; /* 手机端用下方 mobile-filter-bar 分类 */
+            }
         }
     </style>
 </head>
@@ -452,16 +525,28 @@
         <div class="container">
             <div class="header-content">
                 <h1 class="logo">Yelou个人博客</h1>
-                <nav>
-                    <ul>
-                        <li><a href="index.html">首页</a></li>
-                        <li><a href="introduce.html">关于我</a></li>
-                    </ul>
-                </nav>
+                <div class="header-actions">
+                    <nav>
+                        <ul>
+                            <li><a href="introduce.html">关于我</a></li>
+                        </ul>
+                    </nav>
+                    <!-- 分类切换（UI/分类.txt cir-tabs 风格，与「关于我」同级，放其旁） -->
+                    <div class="top-cat-tabs" id="topCatTabs">
+                        <span class="top-cat active" data-cat="">全部</span>
+                        <span class="top-cat" data-cat="博客">博客</span>
+                        <span class="top-cat" data-cat="学习笔记">学习笔记</span>
+                        <span class="top-cat" data-cat="生活感悟">生活感悟</span>
+                    </div>
+                    <label class="theme-switch" title="切换黑白主题">
+                        <input type="checkbox" aria-label="切换黑白主题">
+                        <span class="theme-slider"></span>
+                    </label>
+                </div>
             </div>
         </div>
     </header>
-    
+
     <div class="container main-wrap">
         <!-- 手机端筛选栏 -->
         <div class="mobile-filter-bar">
@@ -502,16 +587,6 @@
                     <p>你好！我是一名热爱技术、运动和游戏的博客作者。通过这个博客，我希望能够分享我的所学所思，记录生活中的美好瞬间。</p>
                 </div>
                 
-                <div class="sidebar-widget categories">
-                    <h3 class="widget-title">分类</h3>
-                    <ul id="categoryList">
-                        <li><a href="index.html" data-cat="">全部</a></li>
-                        <li><a href="index.html?category=博客" data-cat="博客">博客</a></li>
-                        <li><a href="index.html?category=学习笔记" data-cat="学习笔记">学习笔记</a></li>
-                        <li><a href="index.html?category=生活感悟" data-cat="生活感悟">生活感悟</a></li>
-                    </ul>
-                </div>
-                
                 <div class="sidebar-widget">
                     <h3 class="widget-title">标签云</h3>
                     <div id="tagCloud" class="tag-cloud">
@@ -545,6 +620,7 @@
         </div>
     </footer>
 
+    <script src="js/theme.js"></script>
     <script>
         // 前台文章动态渲染：从后端 API 加载（内容由后台发布入库）
         (function () {
@@ -568,9 +644,9 @@
             var searchInput = document.getElementById('searchInput');
             if (keyword) searchInput.value = keyword;
 
-            // 标记当前激活分类
-            document.querySelectorAll('#categoryList a').forEach(function (a) {
-                if ((a.getAttribute('data-cat') || '') === category) a.classList.add('active');
+            // 标记当前激活分类（顶部分类 tabs）
+            document.querySelectorAll('#topCatTabs .top-cat').forEach(function (t) {
+                if ((t.getAttribute('data-cat') || '') === category) t.classList.add('active');
             });
 
             function fmtDate(s) {
@@ -758,15 +834,32 @@
                 loadArticles();
             });
 
-            // 桌面端分类点击
-            document.querySelectorAll('#categoryList a').forEach(function (a) {
-                a.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    category = a.getAttribute('data-cat') || '';
+            // 顶部分类 tabs 点击（与侧边栏分类联动）
+            document.querySelectorAll('#topCatTabs .top-cat').forEach(function (tab) {
+                tab.addEventListener('click', function () {
+                    category = this.getAttribute('data-cat') || '';
+                    document.querySelectorAll('#topCatTabs .top-cat').forEach(function (t) { t.classList.remove('active'); });
+                    this.classList.add('active');
                     updateUrl();
                     loadArticles();
                 });
             });
+
+            // 同步：URL 有分类参数时，标记顶部分类 tabs 的激活态
+            (function syncTopCat() {
+                var active = document.querySelector('#topCatTabs .top-cat[data-cat="' + (category || '') + '"]')
+                    || (category ? null : document.querySelector('#topCatTabs .top-cat[data-cat=""]'));
+                document.querySelectorAll('#topCatTabs .top-cat').forEach(function (t) {
+                    t.classList.toggle('active', t === active || (!category && t.getAttribute('data-cat') === ''));
+                });
+            })();
+
+            // 顶部分类激活态同步（所有入口共用）
+            function syncTopCatActive(cat) {
+                document.querySelectorAll('#topCatTabs .top-cat').forEach(function (t) {
+                    t.classList.toggle('active', (t.getAttribute('data-cat') || '') === (cat || ''));
+                });
+            }
 
             // 桌面端标签云点击
             document.getElementById('tagCloud').addEventListener('click', function (e) {

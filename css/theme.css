@@ -1,0 +1,161 @@
+/* 黑白主题变量：浅色为白底黑字，深色为黑底白字 */
+:root {
+  --bg: #f5f5f5;
+  --bg-grid: #e4e4e4;
+  --card: #212121;              /* 浅色主题：深色卡片（与浅色背景相反） */
+  --card-op: 0.92;
+  --card-text: #f5f5f5;          /* 卡片上的主文字（与卡片底色相反） */
+  --card-muted: #a3a3a3;        /* 卡片上的次要文字 */
+  --card-stripe: #2e2e2e;       /* 卡片内表格斑马纹 / 浅色填充 */
+  --card-head: #383838;         /* 卡片内表头 */
+  --text: #111111;
+  --muted: #666666;
+  --border: #d8d8d8;
+  --accent: #111111;
+  --accent-contrast: #ffffff;
+  --header-bg: rgba(255, 255, 255, 0.86);
+  --footer-bg: #101010;
+  --footer-text: #f5f5f5;
+  --link: #111111;
+  --link-hover: #555555;
+  --table-stripe: #f1f1f1;
+  --table-head: #e8e8e8;
+  --code-bg: #111111;
+  --code-text: #f5f5f5;
+  --shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+  --card-shadow: 15px 15px 30px rgba(33,33,33,0.35), -15px -15px 30px rgba(255,255,255,0.85);
+  --focus: rgba(0, 0, 0, 0.22);
+}
+
+html[data-theme='dark'] {
+  --bg: #050505;
+  --bg-grid: #111111;
+  --card: #e0e0e0;              /* 深色主题：浅色卡片（与深色背景相反） */
+  --card-text: #111111;         /* 卡片上的主文字（与卡片底色相反） */
+  --card-muted: #666666;
+  --card-stripe: #d0d0d0;
+  --card-head: #c0c0c0;
+  --text: #f5f5f5;
+  --muted: #a3a3a3;
+  --border: #2a2a2a;
+  --accent: #f5f5f5;
+  --accent-contrast: #050505;
+  --header-bg: rgba(5, 5, 5, 0.82);
+  --footer-bg: #000000;
+  --footer-text: #f5f5f5;
+  --link: #f5f5f5;
+  --link-hover: #b3b3b3;
+  --table-stripe: #111111;
+  --table-head: #1f1f1f;
+  --code-bg: #050505;
+  --code-text: #f5f5f5;
+  --shadow: 0 14px 28px rgba(0, 0, 0, 0.65);
+  --card-shadow: 15px 15px 30px rgba(0,0,0,0.7), -15px -15px 30px rgba(60,60,60,0.55);
+  --focus: rgba(255, 255, 255, 0.25);
+}
+
+/* 覆盖页面原有正文背景图，保留星空/方格主题（由 theme-uiverse.css 的 body::before 提供实际背景） */
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+html[data-theme='dark'] body {
+  background-color: #050505;
+  color: #f5f5f5;
+}
+
+/* 主题切换开关（独立底色 + 描边，与卡片/页头区分开） */
+.theme-switch {
+  position: relative;
+  display: inline-block;
+  width: 52px;
+  height: 28px;
+  margin-left: 12px;
+  vertical-align: middle;
+  cursor: pointer;
+  background: transparent;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+/* 卡片色系页头（introduce）上，开关滑块用与卡片相反的颜色，保证可见 */
+.introduce-page .theme-switch .theme-slider {
+  background: var(--card-text);
+  border: 1px solid var(--card-text);
+}
+.introduce-page .theme-switch .theme-slider::before {
+  background: var(--card);
+}
+.introduce-page .theme-switch input:checked + .theme-slider {
+  background: var(--card);
+  border-color: var(--card-text);
+}
+.introduce-page .theme-switch input:checked + .theme-slider::before {
+  background: var(--card-text);
+}
+.theme-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+.theme-switch .theme-slider {
+  position: absolute;
+  inset: 0;
+  background: #111;
+  border: 1px solid #111;
+  border-radius: 999px;
+  transition: background-color 0.25s ease, border-color 0.25s ease;
+}
+.theme-switch .theme-slider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translateY(-50%);
+  transition: transform 0.25s ease, background-color 0.25s ease;
+}
+.theme-switch input:checked + .theme-slider {
+  background: #fff;
+  border-color: #111;
+}
+.theme-switch input:checked + .theme-slider::before {
+  transform: translate(20px, -50%);
+  background: #111;
+}
+.theme-switch input:focus-visible + .theme-slider {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* 页头右侧操作区：导航 + 主题切换 */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.header-actions nav {
+  display: flex;
+  align-items: center;
+}
+
+/* 加载占位 */
+.post-tip {
+  color: var(--muted);
+}
+
+/* 移动端保持可用 */
+@media (max-width: 768px) {
+  .theme-switch {
+    margin-left: 0;
+    margin-top: 8px;
+  }
+  .header-actions {
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+}

@@ -1,0 +1,521 @@
+/* 黑白 Uiverse 风格覆盖层：在 css/theme.css 之后加载；保持功能 DOM 不变，只替换外观。
+   页面内联 <style> 写在 head 里通常位于外联 CSS 之前，因此同优先级下本文件生效。 */
+
+body {
+  color: var(--text);
+}
+
+/* 主题背景层：浅色白方格 / 深色星空（fixed 伪元素，z-index -1 位于 body 背景之上、内容之下） */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+html:not([data-theme='dark']) body::before {
+  background:
+    linear-gradient(var(--bg-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+  background-size: 30px 30px;
+  background-color: var(--bg);
+}
+html[data-theme='dark'] body::before {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255,255,255,.85) 1px, transparent 2px),
+    radial-gradient(circle at 28% 62%, rgba(255,255,255,.6) 1px, transparent 2px),
+    radial-gradient(circle at 46% 30%, rgba(255,255,255,.75) 1px, transparent 2px),
+    radial-gradient(circle at 64% 78%, rgba(255,255,255,.55) 1px, transparent 2px),
+    radial-gradient(circle at 82% 24%, rgba(255,255,255,.8) 1px, transparent 2px),
+    radial-gradient(circle at 92% 56%, rgba(255,255,255,.5) 1px, transparent 2px),
+    radial-gradient(ellipse at bottom, #1b2735 0%, #050505 100%);
+  background-size:
+    180px 180px, 220px 220px, 160px 160px,
+    260px 260px, 200px 200px, 240px 240px, 100% 100%;
+  animation: starTwinkle 5s ease-in-out infinite;
+}
+/* 深色主题：动态星空层（星星缓慢上移 + 闪烁），让背景"动"起来 */
+html[data-theme='dark'] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1.5px 1.5px at 10% 20%, #fff, transparent),
+    radial-gradient(1px 1px at 30% 70%, rgba(255,255,255,.8), transparent),
+    radial-gradient(2px 2px at 50% 40%, #fff, transparent),
+    radial-gradient(1px 1px at 70% 80%, rgba(255,255,255,.6), transparent),
+    radial-gradient(1.5px 1.5px at 90% 30%, #fff, transparent),
+    radial-gradient(1px 1px at 20% 90%, rgba(255,255,255,.7), transparent),
+    radial-gradient(1px 1px at 80% 60%, rgba(255,255,255,.75), transparent);
+  background-size: 420px 420px;
+  animation:
+    starDrift 90s linear infinite,
+    starTwinkle 4s ease-in-out infinite;
+  opacity: .9;
+}
+@keyframes starDrift {
+  from { background-position: 0 0; }
+  to { background-position: 0 -420px; }
+}
+@keyframes starTwinkle {
+  0%, 100% { opacity: .9; }
+  50% { opacity: .5; }
+}
+/* 深色主题的渐变铺满全屏并固定在底层（与星空伪元素互补） */
+html[data-theme='dark'] body {
+  background-color: #050505;
+}
+html:not([data-theme='dark']) body {
+  background-color: var(--bg);
+}
+
+/* 页头 / 页脚 */
+header {
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 6px 18px rgba(0,0,0,.06);
+  color: var(--text);
+}
+footer, .footer {
+  background: var(--footer-bg);
+  color: var(--footer-text);
+}
+
+/* 卡片族：30px 大圆角 + 卡片阴影（UI/卡片白、卡片黑 风格）
+   卡片颜色与背景相反：浅色背景用深色卡片(#212121)，深色背景用浅色卡片(#e0e0e0)
+   带 92% 不透明度；卡片内文字用 --card-text / --card-muted（与卡片底色相反） */
+.post,
+.sidebar-widget,
+.search-bar,
+.mobile-filter-bar,
+.article-wrap,
+.comments-wrap,
+.toc-card,
+.profile-section,
+.post-tip {
+  background: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);
+  color: var(--card-text);
+  border: 1px solid var(--border);
+  border-radius: 30px;
+  box-shadow: var(--card-shadow);
+  transition: transform .2s ease, box-shadow .2s ease, background-color .2s ease;
+}
+.post:hover {
+  transform: translate(-3px, -3px);
+}
+
+/* 卡片内的文字 / 次要文字（全部跟随卡片底色反转） */
+.post-title, .post-title a,
+.widget-title,
+.article-title,
+.toc-title,
+.comments-title,
+.post-content,
+.article-body,
+.article-body h1, .article-body h2, .article-body h3, .article-body h4,
+.article-body p, .article-body li, .article-body span,
+.comment-content,
+.skill,
+.stat-table th, .stat-table td,
+.article-body td, .article-body th,
+.post-tags .tag,
+.categories ul li a,
+.recent-posts li a,
+.tag-item,
+.search-input,
+.comment-form input, .comment-form textarea,
+.reply-form input, .reply-form textarea,
+.comment-item {
+  color: var(--card-text);
+}
+.post-meta,
+.comment-head,
+.comment-empty,
+.mobile-filter-label,
+.article-meta,
+.comments-title .count,
+.comment-head {
+  color: var(--card-muted);
+}
+.comment-head .nickname {
+  color: var(--card-text);
+}
+
+/* 卡片内的表格（斑马纹 / 表头 跟随卡片） */
+html:not([data-theme='dark']) .article-body th,
+html:not([data-theme='dark']) .stat-table th {
+  background: var(--card-head);
+}
+html:not([data-theme='dark']) .article-body tr:nth-child(even) td,
+html:not([data-theme='dark']) .stat-table tr:nth-child(even) td {
+  background: var(--card-stripe);
+}
+html:not([data-theme='dark']) .article-body blockquote,
+html:not([data-theme='dark']) .article-body .md-fallback,
+html:not([data-theme='dark']) .reply-form {
+  background: var(--card-stripe);
+}
+html:not([data-theme='dark']) .article-body pre {
+  background: #000;
+  color: #f5f5f5;
+}
+html[data-theme='dark'] .article-body th,
+html[data-theme='dark'] .stat-table th {
+  background: var(--card-head);
+}
+html[data-theme='dark'] .article-body tr:nth-child(even) td,
+html[data-theme='dark'] .stat-table tr:nth-child(even) td {
+  background: var(--card-stripe);
+}
+html[data-theme='dark'] .article-body blockquote,
+html[data-theme='dark'] .article-body .md-fallback,
+html[data-theme='dark'] .reply-form {
+  background: var(--card-stripe);
+}
+html[data-theme='dark'] .article-body pre {
+  background: #111;
+  color: #f5f5f5;
+}
+
+/* 卡片内的链接（跟随卡片文字色，hover 下划线） */
+.post-title a,
+.article-body a,
+.categories ul li a,
+.recent-posts li a,
+.toc-list a,
+.back-bar a {
+  color: var(--card-text);
+}
+.post-title a:hover,
+.article-body a:hover,
+.back-bar a:hover {
+  text-decoration: underline;
+}
+
+/* 标题 / 正文颜色（卡片外：跟随页面文字；卡片内：跟随卡片文字，见下方卡片族规则） */
+.copyright {
+  color: var(--footer-text);
+}
+
+/* 导航：hover 黑白反色 */
+nav ul li a {
+  color: var(--text);
+}
+nav ul li a:hover {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+/* 链接 */
+a {
+  color: var(--link);
+}
+a:hover {
+  color: var(--link-hover);
+}
+.post-title a:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+/* 按钮（主要）：平行四边形按钮风格 + 黑白反色
+   常态：accent 底 + accent-contrast 字
+   hover：整体反色（accent ↔ accent-contrast），背景和文字同时变化 */
+.read-more,
+.search-btn,
+.btn-submit,
+.comment-form .btn-submit,
+.reply-form .btn-submit {
+  position: relative;
+  display: inline-block;
+  transform: skew(-18deg);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border: 2px solid var(--accent);
+  border-radius: 2px;
+  box-shadow: 4px 4px 0 var(--border);
+  transition: background-color .2s ease, color .2s ease, transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.read-more:hover,
+.search-btn:hover,
+.btn-submit:hover,
+.comment-form .btn-submit:hover,
+.reply-form .btn-submit:hover {
+  background: var(--accent-contrast);
+  color: var(--accent);
+  border-color: var(--accent-contrast);
+  transform: skew(-18deg) translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--accent);
+}
+.read-more:disabled,
+.btn-submit:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+/* 次要按钮（跟随卡片底色反转） */
+.clear-btn,
+.reply-cancel,
+.cm-reply,
+.toc-btn {
+  background: var(--card-stripe);
+  color: var(--card-text);
+  border: 1px solid var(--card-text);
+  border-radius: 4px;
+  transition: background-color .2s ease, color .2s ease, border-color .2s ease;
+}
+.clear-btn:hover,
+.reply-cancel:hover,
+.cm-reply:hover,
+.toc-btn:hover {
+  background: var(--card-text);
+  color: var(--card-stripe);
+  border-color: var(--card-text);
+}
+
+/* 输入框（改回原 search白 风格：白底黑框，hover 上浮，focus 黑底白字） */
+.search-input,
+.comment-form input,
+.comment-form textarea,
+.reply-form input,
+.reply-form textarea {
+  background: #fff;
+  color: #000;
+  border: 4px solid #000;
+  border-radius: 0;
+  box-shadow: 8px 8px 0 #000;
+  transition: all .3s ease;
+}
+.search-input::placeholder,
+.comment-form input::placeholder,
+.comment-form textarea::placeholder,
+.reply-form input::placeholder,
+.reply-form textarea::placeholder {
+  color: #888;
+}
+.search-input:hover,
+.comment-form input:hover,
+.comment-form textarea:hover,
+.reply-form input:hover,
+.reply-form textarea:hover {
+  transform: translate(-4px, -4px);
+  box-shadow: 12px 12px 0 #000;
+}
+.search-input:focus,
+.comment-form input:focus,
+.comment-form textarea:focus,
+.reply-form input:focus,
+.reply-form textarea:focus {
+  outline: none;
+  background: #000;
+  color: #fff;
+  border-color: #fff;
+}
+.search-input:focus::placeholder,
+.comment-form input:focus::placeholder,
+.comment-form textarea:focus::placeholder {
+  color: #fff;
+}
+
+/* 卡片内的标签 / 筛选 pill（分类.txt 风格，黑白化，底色跟随卡片） */
+.tag,
+.filter-tag,
+.tag-item,
+.skill,
+.mobile-cat-btn,
+.mobile-tag-btn {
+  border: 1px solid var(--card-head);
+  background: var(--card-stripe);
+  color: var(--card-text);
+  transition: background-color .2s ease, color .2s ease, border-color .2s ease;
+}
+.tag-item:hover,
+.mobile-cat-btn:hover,
+.mobile-tag-btn:hover {
+  border-color: var(--card-text);
+}
+.tag-item.active,
+.mobile-cat-btn.active,
+.mobile-tag-btn.active {
+  background: var(--card-text);
+  color: var(--card);
+  border-color: var(--card-text);
+}
+
+/* 文章正文（卡片内：跟随卡片文字色） */
+.article-body {
+  color: var(--card-text);
+}
+.article-body h1,
+.article-body h2,
+.article-body h3,
+.article-body h4,
+.article-body h5,
+.article-body h6 {
+  color: var(--card-text);
+}
+.article-body a {
+  color: var(--card-text);
+  text-decoration: underline;
+}
+.article-body blockquote {
+  border-left: 4px solid var(--card-text);
+  background: var(--card-stripe);
+  color: var(--card-muted);
+}
+.article-body pre {
+  background: var(--code-bg);
+  color: var(--code-text);
+  border: 1px solid var(--border);
+}
+.article-body table,
+.stat-table {
+  border-color: var(--card-head);
+}
+.article-body th,
+.stat-table th {
+  background: var(--card-head);
+  color: var(--card-text);
+}
+.article-body td,
+.stat-table td {
+  color: var(--card-text);
+}
+.article-body tr:nth-child(even) td,
+.stat-table tr:nth-child(even) td {
+  background: var(--card-stripe);
+}
+.article-body .md-fallback {
+  background: var(--card-stripe);
+  color: var(--card-text);
+}
+
+/* 目录卡片（卡片内） */
+.toc-card {
+  background: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);
+  color: var(--card-text);
+}
+.toc-list a {
+  color: var(--card-muted);
+}
+.toc-list a:hover {
+  color: var(--card-text);
+}
+.toc-list a.active {
+  color: var(--card-text);
+  border-left-color: var(--card-text);
+  background: var(--card-stripe);
+}
+
+/* 评论区（卡片内） */
+.comment-item {
+  border-top-color: var(--card-head);
+}
+.comment-content {
+  color: var(--card-text);
+}
+.comment-replies {
+  border-left-color: var(--card-head);
+}
+.reply-form {
+  background: var(--card-stripe);
+}
+
+/* 点赞按钮（卡片内） */
+.like-btn {
+  background: var(--card-stripe);
+  color: var(--card-text);
+  border: 1px solid var(--card-head);
+  border-radius: 999px;
+}
+.like-btn:hover {
+  background: var(--card-text);
+  color: var(--card);
+  border-color: var(--card-text);
+}
+.like-btn.on {
+  background: var(--card-text);
+  color: var(--card);
+  border-color: var(--card-text);
+}
+
+/* introduce.html 页头（黑白，与卡片同色系） */
+.introduce-page header,
+.introduce-page .introduce-header {
+  background: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);
+  color: var(--card-text);
+  border-radius: 30px;
+  box-shadow: var(--card-shadow);
+  border: 1px solid var(--border);
+}
+.introduce-page header h1,
+.introduce-page header p,
+.introduce-page .introduce-header h1,
+.introduce-page .introduce-header p {
+  color: var(--card-text);
+}
+.introduce-page header nav a,
+.introduce-page .introduce-header nav a {
+  color: var(--card-text);
+}
+.introduce-page header nav a:hover,
+.introduce-page .introduce-header nav a:hover {
+  background: var(--card-text);
+  color: var(--card);
+}
+.introduce-page .profile-section {
+  background: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);
+  border: 1px solid var(--border);
+  color: var(--card-text);
+  box-shadow: var(--card-shadow);
+}
+.introduce-page h2 {
+  color: var(--card-text);
+  border-bottom-color: var(--card-head);
+}
+.introduce-page .skill {
+  background: var(--card-stripe);
+  color: var(--card-text);
+  border-radius: 999px;
+  border: 1px solid var(--card-head);
+}
+.introduce-page p,
+.introduce-page .profile-section h3 {
+  color: var(--card-text);
+}
+
+/* 首页头部 logo 颜色 */
+.logo {
+  color: var(--text);
+}
+.logo a {
+  color: var(--text);
+}
+
+/* 页脚内部链接 */
+.footer-links a,
+footer a {
+  color: var(--footer-text);
+}
+
+/* 空状态 / 加载提示 */
+.post-tip {
+  background: var(--card);
+  color: var(--muted);
+}
+
+/* 视频 / 图片容器 */
+.video-container {
+  background: #000;
+  border: 1px solid var(--border);
+}
+
+/* 手机端搜索按钮列宽 */
+@media (max-width: 768px) {
+  .search-btn, .clear-btn {
+    width: 100%;
+  }
+}

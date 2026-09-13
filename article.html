@@ -9,13 +9,12 @@
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://yelou.pages.dev/article">
     <title>文章详情 - yelou的个人博客</title>
+    <script src="js/theme-init.js"></script>
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/theme-uiverse.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Arial', 'Microsoft YaHei', sans-serif; }
         body {
-            background-image: url("picture/d3SJaPgZhqMVOQv.thumb.png");
-            background-size: cover;
-            background-attachment: fixed;
-            background-repeat: no-repeat;
             line-height: 1.7;
             min-height: 100vh;
             display: flex;
@@ -23,45 +22,49 @@
         }
         /* 内容不足一屏时让页脚始终贴底 */
         .main-wrap { flex: 1 1 auto; width: 100%; }
-        a { text-decoration: none; color: #3498db; }
-        a:hover { color: #2980b9; }
+        a { text-decoration: none; color: var(--link); }
+        a:hover { color: var(--link-hover); }
         .container { max-width: 900px; margin: 0 auto; padding: 0 20px; }
         header {
-            background-color: #fff; opacity: 0.85;
+            background-color: var(--header-bg); opacity: 0.92;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             padding: 20px 0;
+            border-bottom: 1px solid var(--border);
         }
         .header-content { display: flex; justify-content: space-between; align-items: center; }
-        .logo { font-size: 24px; font-weight: bold; color: #2c3e50; }
+        .logo { font-size: 24px; font-weight: bold; color: var(--text); }
+        .logo a { color: var(--text); }
         nav ul { display: flex; list-style: none; }
         nav ul li { margin-left: 20px; }
-        nav ul li a { color: #2c3e50; font-weight: 500; padding: 5px 10px; border-radius: 4px; transition: background-color 0.3s; }
-        nav ul li a:hover { background-color: #ecf0f1; }
+        nav ul li a { color: var(--text); font-weight: 500; padding: 5px 10px; border-radius: 4px; transition: background-color 0.3s; }
+        nav ul li a:hover { background-color: var(--accent); color: var(--accent-contrast); }
         .article-wrap {
-            background-color: #fff; opacity: 0.95;
-            border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            background-color: var(--card); opacity: 1;
+            border-radius: 30px; box-shadow: var(--shadow);
             padding: 36px 40px; margin: 30px 0;
+            border: 1px solid var(--border);
         }
-        .article-title { color: #2c3e50; font-size: 26px; margin-bottom: 12px; }
-        .article-meta { color: #7f8c8d; font-size: 14px; margin-bottom: 8px; }
+        .article-title { color: var(--text); font-size: 26px; margin-bottom: 12px; }
+        .article-meta { color: var(--muted); font-size: 14px; margin-bottom: 8px; }
         .article-tags { margin-bottom: 22px; }
         .article-tags .tag {
-            display: inline-block; background-color: #eaf2f8; color: #2980b9;
+            display: inline-block; background-color: var(--table-stripe); color: var(--text);
             border-radius: 4px; padding: 2px 10px; font-size: 12px; margin: 0 4px 4px 0;
+            border: 1px solid var(--border);
         }
-        .article-body { border-top: 1px solid #ecf0f1; padding-top: 24px; font-size: 15.5px; color: #34495e; word-break: break-word; }
+        .article-body { border-top: 1px solid var(--border); padding-top: 24px; font-size: 15.5px; color: var(--text); word-break: break-word; }
         .article-body img { max-width: 100%; height: auto; border-radius: 6px; }
-        .article-body a { word-break: break-all; }
+        .article-body a { word-break: break-all; color: var(--link); }
         .article-body blockquote {
-            border-left: 4px solid #3498db; background: #f8f9fa;
-            padding: 10px 16px; margin: 14px 0; color: #7f8c8d;
+            border-left: 4px solid var(--text); background: var(--table-stripe);
+            padding: 10px 16px; margin: 14px 0; color: var(--muted);
         }
         .article-body pre {
-            background: #2c3e50; color: #ecf0f1; border-radius: 6px;
+            background: var(--code-bg); color: var(--code-text); border-radius: 6px;
             padding: 14px 16px; overflow-x: auto; margin: 14px 0;
         }
         .article-body code { font-family: Consolas, monospace; }
-        .article-body h1,.article-body h2,.article-body h3,.article-body h4 { color: #2c3e50; margin: 20px 0 10px; }
+        .article-body h1,.article-body h2,.article-body h3,.article-body h4 { color: var(--text); margin: 20px 0 10px; }
         /* 文内目录锚点跳转：平滑滚动 */
         html { scroll-behavior: smooth; }
         /* 双栏布局（PC ≥769px）：文章占满左侧，目录模块为右侧独立卡片；
@@ -73,32 +76,34 @@
             .layout { display: grid; grid-template-columns: minmax(0, 1fr) 232px; gap: 28px; align-items: stretch; }
             .toc-card {
                 position: sticky; top: 20px;
-                background: #fff; opacity: .95;
-                border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,.1);
+                background: var(--card); opacity: 1;
+                border-radius: 30px; box-shadow: var(--shadow);
                 padding: 14px 16px;
                 max-height: calc(100vh - 40px); overflow-y: auto;
+                border: 1px solid var(--border);
             }
             .toc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-            .toc-title { font-size: 15px; font-weight: 600; color: #2c3e50; }
+            .toc-title { font-size: 15px; font-weight: 600; color: var(--text); }
             /* 卡片上的「评论」「首页」按钮（共用胶囊样式）：评论 → 页内锚点 #commentWrap，首页 → index.html */
             .toc-actions { display: flex; gap: 6px; }
             .toc-btn {
-                font-size: 12px; color: #3498db; background: #eaf2f8;
+                font-size: 12px; color: var(--text); background: var(--table-stripe);
                 padding: 3px 10px; border-radius: 4px; text-decoration: none;
                 transition: background-color .2s, color .2s;
+                border: 1px solid var(--border);
             }
-            .toc-btn:hover { background: #3498db; color: #fff; }
+            .toc-btn:hover { background: var(--accent); color: var(--accent-contrast); }
             .toc-list a {
                 display: block; padding: 4px 8px; margin: 1px 0;
-                color: #7f8c8d; font-size: 13.5px; line-height: 1.45;
+                color: var(--muted); font-size: 13.5px; line-height: 1.45;
                 border-left: 2px solid transparent; border-radius: 0 4px 4px 0;
                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
                 transition: color .2s, border-color .2s, background-color .2s;
             }
-            .toc-list a:hover { color: #2980b9; }
+            .toc-list a:hover { color: var(--text); }
             .toc-list a.lvl-3 { padding-left: 22px; font-size: 12.5px; }
             .toc-list a.lvl-4 { padding-left: 36px; font-size: 12px; }
-            .toc-list a.active { color: #3498db; border-left-color: #3498db; background: #f4f8fb; }
+            .toc-list a.active { color: var(--text); border-left-color: var(--text); background: var(--table-stripe); }
         }
         /* 移动端（≤768px）：不展示目录模块，单栏居中 */
         @media (max-width: 768px) {
@@ -106,70 +111,71 @@
         }
         /* 表格（Markdown GFM 表格 / HTML 表格共用） */
         .article-body table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14.5px; }
-        .article-body th, .article-body td { border: 1px solid #e3e8ee; padding: 8px 12px; text-align: left; }
-        .article-body th { background: #f2f5f9; color: #2c3e50; font-weight: 600; }
-        .article-body tr:nth-child(even) td { background: #fafbfc; }
-        .article-body caption { caption-side: bottom; color: #7f8c8d; font-size: 13px; padding-top: 6px; }
-        .article-body .md-fallback { background: #f6f8fa; padding: 14px 16px; border-radius: 6px; white-space: pre-wrap; font-size: 14px; }
+        .article-body th, .article-body td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; color: var(--text); }
+        .article-body th { background: var(--table-head); color: var(--text); font-weight: 600; }
+        .article-body tr:nth-child(even) td { background: var(--table-stripe); }
+        .article-body caption { caption-side: bottom; color: var(--muted); font-size: 13px; padding-top: 6px; }
+        .article-body .md-fallback { background: var(--table-stripe); padding: 14px 16px; border-radius: 6px; white-space: pre-wrap; font-size: 14px; color: var(--text); }
         .table-scroll { overflow-x: auto; }
         .back-bar { margin: 24px 0 0; }
-        .back-bar a { color: #7f8c8d; font-size: 14px; }
-        .back-bar a:hover { color: #3498db; }
-        footer { background-color: #2c3e50; color: #ecf0f1; padding: 30px 0; text-align: center; }
+        .back-bar a { color: var(--muted); font-size: 14px; }
+        .back-bar a:hover { color: var(--text); }
+        footer { background-color: var(--footer-bg); color: var(--footer-text); padding: 30px 0; text-align: center; }
         .copyright { font-size: 14px; }
-        .post-tip { background-color: #fff; border-radius: 8px; padding: 40px 20px; text-align: center; color: #7f8c8d; margin: 30px 0; }
+        .post-tip { background-color: var(--card); border-radius: 30px; padding: 40px 20px; text-align: center; color: var(--muted); margin: 30px 0; border: 1px solid var(--border); box-shadow: var(--shadow); }
         /* 评论区（REQ-25 / REQ-27） */
         /* 目录卡片「评论」按钮锚点 #commentWrap 的落地偏移（与 sticky 卡片顶距一致） */
         #commentWrap { scroll-margin-top: 20px; }
-        .comments-wrap { background-color: #fff; opacity: 0.95; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); padding: 24px 40px; margin: 0 0 30px; }
-        .comments-title { color: #2c3e50; font-size: 18px; margin: 0 0 14px; }
-        .comments-title .count { color: #7f8c8d; font-size: 14px; font-weight: normal; }
-        .comment-item { border-top: 1px solid #ecf0f1; padding: 14px 0; }
+        .comments-wrap { background-color: var(--card); opacity: 1; border-radius: 30px; box-shadow: var(--shadow); padding: 24px 40px; margin: 0 0 30px; border: 1px solid var(--border); }
+        .comments-title { color: var(--text); font-size: 18px; margin: 0 0 14px; }
+        .comments-title .count { color: var(--muted); font-size: 14px; font-weight: normal; }
+        .comment-item { border-top: 1px solid var(--border); padding: 14px 0; }
         .comment-item:first-child { border-top: none; }
-        .comment-head { font-size: 13px; color: #7f8c8d; margin-bottom: 6px; }
-        .comment-head .nickname { color: #2c3e50; font-weight: bold; margin-right: 8px; }
-        .comment-content { font-size: 14.5px; color: #34495e; word-break: break-word; white-space: pre-wrap; }
-        .comment-empty { color: #7f8c8d; font-size: 14px; padding: 10px 0; }
-        .comment-form { border-top: 1px solid #ecf0f1; margin-top: 18px; padding-top: 18px; }
+        .comment-head { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+        .comment-head .nickname { color: var(--text); font-weight: bold; margin-right: 8px; }
+        .comment-content { font-size: 14.5px; color: var(--text); word-break: break-word; white-space: pre-wrap; }
+        .comment-empty { color: var(--muted); font-size: 14px; padding: 10px 0; }
+        .comment-form { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 18px; }
         .comment-form .row { display: flex; gap: 10px; margin-bottom: 10px; }
-        .comment-form input, .comment-form textarea { flex: 1; min-width: 0; border: 1px solid #dfe4e8; border-radius: 4px; padding: 8px 10px; font-size: 14px; font-family: inherit; }
-        .comment-form input:focus, .comment-form textarea:focus { outline: none; border-color: #3498db; }
+        .comment-form input, .comment-form textarea { flex: 1; min-width: 0; border: 2px solid var(--text); border-radius: 2px; padding: 8px 10px; font-size: 14px; font-family: inherit; background: var(--card); color: var(--text); box-shadow: 4px 4px 0 var(--accent); }
+        .comment-form input:focus, .comment-form textarea:focus { outline: none; border-color: var(--card); background: var(--accent); color: var(--accent-contrast); }
         .comment-form .field-name { flex: 0 0 42%; }
         .comment-form textarea { resize: vertical; min-height: 80px; }
-        .comment-form .btn-submit { background: #3498db; color: #fff; border: none; border-radius: 4px; padding: 8px 22px; font-size: 14px; cursor: pointer; touch-action: manipulation; }
-        .comment-form .btn-submit:hover { background: #2980b9; }
-        .comment-form .btn-submit:disabled { background: #9dc9e8; cursor: not-allowed; }
-        .comment-msg { font-size: 13px; margin-top: 8px; min-height: 16px; }
-        .comment-msg.error { color: #e74c3c; }
-        .comment-msg.ok { color: #27ae60; }
+        .comment-form .btn-submit { background: var(--accent); color: var(--accent-contrast); border: 2px solid var(--accent); border-radius: 2px; padding: 8px 22px; font-size: 14px; cursor: pointer; touch-action: manipulation; transform: skew(-18deg); box-shadow: 4px 4px 0 var(--border); }
+        .comment-form .btn-submit:hover { background: var(--card); color: var(--text); border-color: var(--text); transform: skew(-18deg) translate(-2px, -2px); box-shadow: 6px 6px 0 var(--accent); }
+        .comment-form .btn-submit:disabled { background: var(--muted); color: var(--card); cursor: not-allowed; }
+        .comment-msg { font-size: 13px; margin-top: 8px; min-height: 16px; color: var(--muted); }
+        .comment-msg.error { color: #d94b4b; }
+        .comment-msg.ok { color: #2f9e63; }
         /* 点赞按钮（文章 meta 行 + 评论操作行共用） */
         .like-btn {
-            font-size: 12.5px; color: #7f8c8d; background: #f4f6f8;
-            border: 1px solid #e3e8ee; border-radius: 12px; padding: 2px 10px; cursor: pointer;
+            font-size: 12.5px; color: var(--text); background: var(--card);
+            border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; cursor: pointer;
             transition: color .2s, background-color .2s, border-color .2s;
         }
-        .like-btn:hover { color: #e67e22; border-color: #f0c8a0; background: #fdf4ea; }
-        .like-btn.on { color: #fff; background: #e67e22; border-color: #e67e22; }
-        .like-btn.on:hover { background: #d35400; }
+        .like-btn:hover { color: var(--accent-contrast); border-color: var(--accent); background: var(--accent); }
+        .like-btn.on { color: var(--accent-contrast); background: var(--accent); border-color: var(--accent); }
+        .like-btn.on:hover { background: var(--card); color: var(--text); border-color: var(--text); }
         .article-like { margin-left: 10px; vertical-align: middle; }
         /* 评论操作行：点赞 + 回复（回复仅顶级评论显示） */
         .comment-actions { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
-        .cm-reply { font-size: 12.5px; color: #7f8c8d; background: none; border: none; cursor: pointer; padding: 2px 4px; }
-        .cm-reply:hover { color: #3498db; }
+        .cm-reply { font-size: 12.5px; color: var(--muted); background: none; border: 1px solid var(--border); cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+        .cm-reply:hover { color: var(--accent-contrast); background: var(--accent); border-color: var(--accent); }
         /* 嵌套回复（一级）：缩进 + 弱化样式 */
-        .comment-replies { margin-top: 10px; padding-left: 14px; border-left: 2px solid #ecf0f1; }
+        .comment-replies { margin-top: 10px; padding-left: 14px; border-left: 2px solid var(--border); }
         .comment-item.reply .comment-head { font-size: 12px; }
         .comment-item.reply .comment-content { font-size: 13.5px; }
         /* 内联回复表单 */
-        .reply-form { margin-top: 10px; padding: 10px 12px; background: #f8f9fa; border-radius: 6px; }
+        .reply-form { margin-top: 10px; padding: 10px 12px; background: var(--table-stripe); border-radius: 6px; }
         .reply-form input, .reply-form textarea {
-            width: 100%; box-sizing: border-box; border: 1px solid #dfe4e8; border-radius: 4px;
+            width: 100%; box-sizing: border-box; border: 2px solid var(--text); border-radius: 2px;
             padding: 7px 9px; font-size: 13px; font-family: inherit; margin-bottom: 8px;
+            background: var(--card); color: var(--text);
         }
         .reply-form textarea { resize: vertical; min-height: 56px; }
         .reply-btns { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .reply-cancel { font-size: 12.5px; color: #7f8c8d; background: #ecf0f1; border: none; border-radius: 4px; padding: 6px 14px; cursor: pointer; }
-        .reply-cancel:hover { background: #dfe4e8; }
+        .reply-cancel { font-size: 12.5px; color: var(--text); background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 6px 14px; cursor: pointer; }
+        .reply-cancel:hover { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
         /* 手机端适配（≤ 768px） */
         @media (max-width: 768px) {
             .header-content { flex-direction: column; gap: 12px; }
@@ -196,13 +202,19 @@
     <header>
         <div class="container">
             <div class="header-content">
-                <div class="logo"><a href="index.html" style="color:#2c3e50;">Yelou个人博客</a></div>
-                <nav>
-                    <ul>
-                        <li><a href="index.html">首页</a></li>
-                        <li><a href="introduce.html">关于我</a></li>
-                    </ul>
-                </nav>
+                <div class="logo"><a href="index.html">Yelou个人博客</a></div>
+                <div class="header-actions">
+                    <nav>
+                        <ul>
+                            <li><a href="index.html">首页</a></li>
+                            <li><a href="introduce.html">关于我</a></li>
+                        </ul>
+                    </nav>
+                    <label class="theme-switch" title="切换黑白主题">
+                        <input type="checkbox" aria-label="切换黑白主题">
+                        <span class="theme-slider"></span>
+                    </label>
+                </div>
             </div>
         </div>
     </header>
@@ -234,6 +246,7 @@
     <script src="js/marked.js"></script>
     <!-- 标题锚点：为 md 标题追加 GitHub 风格 id（重名 -1/-2），使文内目录 [文字](#标题) 可点击跳转；白名单需放行 id -->
     <script src="js/heading-ids.js"></script>
+    <script src="js/theme.js"></script>
     <script>
         // 文章详情：从后端 API 加载；渲染前做前端白名单二次过滤（防 XSS 第二道防线）
         (function () {
