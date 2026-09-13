@@ -26,18 +26,19 @@
         a:hover { color: var(--link-hover); }
         .container { max-width: 900px; margin: 0 auto; padding: 0 20px; }
         header {
-            background-color: var(--header-bg); opacity: 0.92;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            background-color: var(--header-bg);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.25);
             padding: 20px 0;
             border-bottom: 1px solid var(--border);
+            color: var(--header-text);
         }
         .header-content { display: flex; justify-content: space-between; align-items: center; }
-        .logo { font-size: 24px; font-weight: bold; color: var(--text); }
-        .logo a { color: var(--text); }
+        .logo { font-size: 24px; font-weight: bold; color: var(--header-text); }
+        .logo a { color: var(--header-text); }
         nav ul { display: flex; list-style: none; }
         nav ul li { margin-left: 20px; }
-        nav ul li a { color: var(--text); font-weight: 500; padding: 5px 10px; border-radius: 4px; transition: background-color 0.3s; }
-        nav ul li a:hover { background-color: var(--accent); color: var(--accent-contrast); }
+        nav ul li a { color: var(--header-text); font-weight: 500; padding: 5px 10px; border-radius: 4px; transition: background-color 0.3s; }
+        nav ul li a:hover { background-color: var(--header-text); color: var(--header-bg); }
         .article-wrap {
             background-color: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent); opacity: 1;
             border-radius: 30px; box-shadow: var(--card-shadow);
@@ -77,7 +78,9 @@
             body.has-toc .container { max-width: 1160px; }
             .layout { display: grid; grid-template-columns: minmax(0, 1fr) 232px; gap: 28px; align-items: stretch; }
             .toc-card {
-                position: sticky; top: 20px;
+                /* 目录卡片不贴着页头，往下留 24px 空隙（sticky 顶距同值） */
+                position: sticky; top: 24px;
+                margin-top: 24px;
                 background: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent); opacity: 1;
                 border-radius: 30px; box-shadow: var(--card-shadow);
                 padding: 14px 16px;

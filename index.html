@@ -46,12 +46,12 @@
             padding: 0 20px;
         }
         
-        /* 头部样式 */
+        /* 头部样式：颜色与主题背景相反（浅色主题=黑页头，深色主题=白页头） */
         header {
             background-color: var(--header-bg);
-			opacity: 0.92;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.25);
             padding: 20px 0;
+            color: var(--header-text);
         }
         
         .header-content {
@@ -63,7 +63,7 @@
         .logo {
             font-size: 24px;
             font-weight: bold;
-            color: var(--text);
+            color: var(--header-text);
             margin: 0;  /* h1.logo 复位浏览器默认外边距 */
         }
         
@@ -77,7 +77,7 @@
         }
         
         nav ul li a {
-            color: var(--text);
+            color: var(--header-text);
             font-weight: 500;
             padding: 5px 10px;
             border-radius: 4px;
@@ -85,8 +85,8 @@
         }
         
         nav ul li a:hover {
-            background-color: var(--accent);
-            color: var(--accent-contrast);
+            background-color: var(--header-text);
+            color: var(--header-bg);
         }
         
         /* 主要内容区域 */
@@ -262,13 +262,13 @@
             font-size: 14px;
         }
         
-        /* 搜索框样式 */
+        /* 搜索框样式（与页头之间留出呼吸空间） */
         .search-bar {
             background-color: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);
             border-radius: 30px;
             box-shadow: var(--card-shadow);
             padding: 16px 20px;
-            margin-bottom: 20px;
+            margin: 28px 0 20px;
             border: 1px solid var(--border);
         }
         .search-box {
@@ -491,7 +491,7 @@
             border-radius: 999px;
             font-size: 13px;
             font-weight: 500;
-            color: var(--muted);
+            color: var(--header-text);
             cursor: pointer;
             white-space: nowrap;
             transition:
@@ -500,11 +500,11 @@
                 box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
         }
         .top-cat-tabs .top-cat:hover {
-            color: var(--text);
+            color: var(--header-text);
         }
         .top-cat-tabs .top-cat.active {
-            background: var(--accent);
-            color: var(--accent-contrast);
+            background: var(--header-text);
+            color: var(--header-bg);
             box-shadow:
                 0 1px 1px rgba(14, 17, 22, 0.06),
                 0 8px 18px -10px rgba(14, 17, 22, 0.5);

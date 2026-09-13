@@ -30,8 +30,8 @@
         header {
             text-align: center;
             padding: 40px 0;
-            background: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);
-            color: var(--card-text);
+            background: #000; /* 纯黑不透明，与名字卡片同色系 */
+            color: #fff;
             margin-bottom: 30px;
             border-radius: 30px;
             box-shadow: var(--card-shadow);
@@ -41,9 +41,10 @@
         header h1 {
             font-size: 2.5rem;
             margin-bottom: 10px;
-            color: var(--card-text);
+            color: #fff;
         }
         
+        /* 第一张含名字的卡片：不透明纯黑 */
         .profile-section {
             background-color: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);
             padding: 30px;
@@ -52,6 +53,24 @@
             box-shadow: var(--card-shadow);
             border: 1px solid var(--border);
             color: var(--card-text);
+        }
+        .profile-section:first-of-type {
+            background: #000;
+            color: #fff;
+        }
+        .profile-section:first-of-type h2,
+        .profile-section:first-of-type h3,
+        .profile-section:first-of-type p,
+        .profile-section:first-of-type .skill {
+            color: #fff;
+        }
+        .profile-section:first-of-type h2 {
+            border-bottom-color: #333;
+        }
+        .profile-section:first-of-type .skill {
+            background: #1a1a1a;
+            border-color: #333;
+            color: #fff;
         }
         
         h2 {
@@ -169,7 +188,7 @@
         }
         
         nav ul li a {
-            color: var(--card-text);
+            color: #fff;
             font-weight: 500;
             padding: 5px 10px;
             border-radius: 4px;
@@ -177,8 +196,8 @@
         }
         
         nav ul li a:hover {
-            background-color: var(--card-text);
-            color: var(--card);
+            background-color: #fff;
+            color: #000;
         }
         
         .footer {

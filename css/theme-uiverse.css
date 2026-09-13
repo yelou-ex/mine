@@ -71,13 +71,49 @@ html:not([data-theme='dark']) body {
   background-color: var(--bg);
 }
 
-/* 页头 / 页脚 */
+/* 页头：颜色与主题背景相反（浅色主题=黑页头，深色主题=白页头），文字随之取相反色 */
 header {
   background: var(--header-bg);
   border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 6px 18px rgba(0,0,0,.06);
-  color: var(--text);
+  box-shadow: 0 6px 18px rgba(0,0,0,.12);
+  color: var(--header-text);
+}
+/* 页头内 logo / 导航 / 分类 tab 跟随页头文字色 */
+header .logo,
+header .logo a,
+header nav ul li a,
+header .top-cat-tabs .top-cat {
+  color: var(--header-text);
+}
+header nav ul li a:hover {
+  background: var(--header-text);
+  color: var(--header-bg);
+}
+header .top-cat-tabs {
+  background: transparent;
+  border-color: var(--header-text);
+}
+header .top-cat-tabs .top-cat.active {
+  background: var(--header-text);
+  color: var(--header-bg);
+  box-shadow: none;
+}
+/* 页头上的主题开关：滑块用页头文字色描边，保证在相反色页头里可见 */
+header .theme-switch {
+  border-color: var(--header-text);
+}
+header .theme-switch .theme-slider {
+  background: var(--header-bg);
+  border-color: var(--header-text);
+}
+header .theme-switch .theme-slider::before {
+  background: var(--header-text);
+}
+header .theme-switch input:checked + .theme-slider {
+  background: var(--header-text);
+}
+header .theme-switch input:checked + .theme-slider::before {
+  background: var(--header-bg);
 }
 footer, .footer {
   background: var(--footer-bg);
@@ -455,11 +491,11 @@ a:hover {
   z-index: 1;
 }
 
-/* introduce.html 页头（黑白，与卡片同色系） */
+/* introduce.html 页头：纯黑不透明，与名字卡片同色系（白字） */
 .introduce-page header,
 .introduce-page .introduce-header {
-  background: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);
-  color: var(--card-text);
+  background: #000;
+  color: #fff;
   border-radius: 30px;
   box-shadow: var(--card-shadow);
   border: 1px solid var(--border);
@@ -468,16 +504,33 @@ a:hover {
 .introduce-page header p,
 .introduce-page .introduce-header h1,
 .introduce-page .introduce-header p {
-  color: var(--card-text);
+  color: #fff;
 }
 .introduce-page header nav a,
 .introduce-page .introduce-header nav a {
-  color: var(--card-text);
+  color: #fff;
 }
 .introduce-page header nav a:hover,
 .introduce-page .introduce-header nav a:hover {
-  background: var(--card-text);
-  color: var(--card);
+  background: #fff;
+  color: #000;
+}
+/* introduce 页头上的主题开关：纯黑页头用白滑块保证可见 */
+.introduce-page .theme-switch {
+  border-color: #fff;
+}
+.introduce-page .theme-switch .theme-slider {
+  background: #000;
+  border-color: #fff;
+}
+.introduce-page .theme-switch .theme-slider::before {
+  background: #fff;
+}
+.introduce-page .theme-switch input:checked + .theme-slider {
+  background: #fff;
+}
+.introduce-page .theme-switch input:checked + .theme-slider::before {
+  background: #000;
 }
 .introduce-page .profile-section {
   background: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);
