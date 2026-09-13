@@ -51,7 +51,7 @@ html[data-theme='dark'] body::after {
     radial-gradient(1px 1px at 80% 60%, rgba(255,255,255,.75), transparent);
   background-size: 640px 640px;
   animation:
-    starDrift 120s linear infinite,
+    starDrift 75s linear infinite,
     starTwinkle 4s ease-in-out infinite;
   opacity: .9;
 }
