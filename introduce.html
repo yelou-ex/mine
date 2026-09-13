@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>关于我 - yelou的个人博客</title>
-    <meta name="description" content="杨楼的个人简介：西安电子科技大学网络空间安全专业，学习之路、成长记录与兴趣爱好。">
+    <meta name="description" content="Yelou的个人简介：西安电子科技大学网络空间安全专业，学习之路、成长记录与兴趣爱好。">
     <script src="js/theme-init.js"></script>
     <link rel="stylesheet" href="css/theme.css">
     <link rel="stylesheet" href="css/theme-uiverse.css">
@@ -30,8 +30,8 @@
         header {
             text-align: center;
             padding: 40px 0;
-            background: #000; /* 纯黑不透明，与名字卡片同色系 */
-            color: #fff;
+            background: var(--header-bg); /* 纯色不透明，与主题背景相反（浅色主题=黑，深色主题=白） */
+            color: var(--header-text);
             margin-bottom: 30px;
             border-radius: 30px;
             box-shadow: var(--card-shadow);
@@ -41,10 +41,13 @@
         header h1 {
             font-size: 2.5rem;
             margin-bottom: 10px;
-            color: #fff;
+            color: var(--header-text);
         }
         
-        /* 第一张含名字的卡片：不透明纯黑 */
+        header p {
+            color: var(--header-text);
+        }
+        
         .profile-section {
             background-color: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);
             padding: 30px;
@@ -53,24 +56,6 @@
             box-shadow: var(--card-shadow);
             border: 1px solid var(--border);
             color: var(--card-text);
-        }
-        .profile-section:first-of-type {
-            background: #000;
-            color: #fff;
-        }
-        .profile-section:first-of-type h2,
-        .profile-section:first-of-type h3,
-        .profile-section:first-of-type p,
-        .profile-section:first-of-type .skill {
-            color: #fff;
-        }
-        .profile-section:first-of-type h2 {
-            border-bottom-color: #333;
-        }
-        .profile-section:first-of-type .skill {
-            background: #1a1a1a;
-            border-color: #333;
-            color: #fff;
         }
         
         h2 {
@@ -188,7 +173,7 @@
         }
         
         nav ul li a {
-            color: #fff;
+            color: var(--header-text);
             font-weight: 500;
             padding: 5px 10px;
             border-radius: 4px;
@@ -196,8 +181,8 @@
         }
         
         nav ul li a:hover {
-            background-color: #fff;
-            color: #000;
+            background-color: var(--header-text);
+            color: var(--header-bg);
         }
         
         .footer {
@@ -224,7 +209,7 @@
 <body class="introduce-page">
     <div class="container">
         <header class="introduce-header">
-            <h1>杨楼&nbsp;</h1>
+            <h1>Yelou&nbsp;</h1>
             <p>天地本宽，而鄙者自愚；风花雪月本闲，而扰攘者自冗&nbsp;</p>
             <div class="header-actions">
                 <nav>
@@ -241,7 +226,7 @@
         
         <section class="profile-section">
           <h2>个人简介</h2>
-          <p>你好，我叫杨楼，是西安电子科技大学一名学生</p>
+          <p>你好，我叫Yelou，是西安电子科技大学一名学生</p>
             <p>来自贵州遵义&nbsp;</p>
 <p>注重行事效率，讨厌形式主义&nbsp;</p>
           <p>性格时i时e</p>
@@ -328,7 +313,7 @@
     </div>
     
     <footer class="footer">
-        <p>© [2025] [杨楼]. 保留所有权利。</p>
+        <p>© [2025] [Yelou]. 保留所有权利。</p>
     </footer>
 
     <script src="js/theme.js"></script>

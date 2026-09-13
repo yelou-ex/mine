@@ -80,21 +80,6 @@ html[data-theme='dark'] body {
   border-radius: 999px;
   border: 1px solid var(--border);
 }
-/* 卡片色系页头（introduce）上，开关滑块用与卡片相反的颜色，保证可见 */
-.introduce-page .theme-switch .theme-slider {
-  background: var(--card-text);
-  border: 1px solid var(--card-text);
-}
-.introduce-page .theme-switch .theme-slider::before {
-  background: var(--card);
-}
-.introduce-page .theme-switch input:checked + .theme-slider {
-  background: var(--card);
-  border-color: var(--card-text);
-}
-.introduce-page .theme-switch input:checked + .theme-slider::before {
-  background: var(--card-text);
-}
 .theme-switch input {
   opacity: 0;
   width: 0;

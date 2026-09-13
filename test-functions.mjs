@@ -110,9 +110,9 @@ function check(name, cond, extra = '') {
 function pageShell() {
   return '<html><head>' +
     '<title>文章详情 - yelou的个人博客</title>' +
-    '<meta name="description" content="杨楼的个人博客文章页：学习笔记与生活感悟。">' +
+    '<meta name="description" content="Yelou的个人博客文章页：学习笔记与生活感悟。">' +
     '<meta property="og:title" content="文章详情 - yelou的个人博客">' +
-    '<meta property="og:description" content="杨楼的个人博客文章页：学习笔记与生活感悟。">' +
+    '<meta property="og:description" content="Yelou的个人博客文章页：学习笔记与生活感悟。">' +
     '<meta property="og:url" content="https://yelou.pages.dev/article">' +
     '</head><body><div class="container main-wrap"><div class="layout"><div class="article-col">' +
     '<div id="articleWrap"></div>' +

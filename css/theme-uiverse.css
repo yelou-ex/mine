@@ -49,15 +49,15 @@ html[data-theme='dark'] body::after {
     radial-gradient(1.5px 1.5px at 90% 30%, #fff, transparent),
     radial-gradient(1px 1px at 20% 90%, rgba(255,255,255,.7), transparent),
     radial-gradient(1px 1px at 80% 60%, rgba(255,255,255,.75), transparent);
-  background-size: 420px 420px;
+  background-size: 640px 640px;
   animation:
-    starDrift 90s linear infinite,
+    starDrift 120s linear infinite,
     starTwinkle 4s ease-in-out infinite;
   opacity: .9;
 }
 @keyframes starDrift {
   from { background-position: 0 0; }
-  to { background-position: 0 -420px; }
+  to { background-position: 0 -640px; }
 }
 @keyframes starTwinkle {
   0%, 100% { opacity: .9; }
@@ -491,11 +491,11 @@ a:hover {
   z-index: 1;
 }
 
-/* introduce.html 页头：纯黑不透明，与名字卡片同色系（白字） */
+/* introduce.html 页头：纯色不透明，与主题背景相反（浅色主题=黑页头白字，深色主题=白页头黑字） */
 .introduce-page header,
 .introduce-page .introduce-header {
-  background: #000;
-  color: #fff;
+  background: var(--header-bg);
+  color: var(--header-text);
   border-radius: 30px;
   box-shadow: var(--card-shadow);
   border: 1px solid var(--border);
@@ -504,33 +504,33 @@ a:hover {
 .introduce-page header p,
 .introduce-page .introduce-header h1,
 .introduce-page .introduce-header p {
-  color: #fff;
+  color: var(--header-text);
 }
 .introduce-page header nav a,
 .introduce-page .introduce-header nav a {
-  color: #fff;
+  color: var(--header-text);
 }
 .introduce-page header nav a:hover,
 .introduce-page .introduce-header nav a:hover {
-  background: #fff;
-  color: #000;
+  background: var(--header-text);
+  color: var(--header-bg);
 }
-/* introduce 页头上的主题开关：纯黑页头用白滑块保证可见 */
+/* introduce 页头上的主题开关：滑块随相反色页头自适应 */
 .introduce-page .theme-switch {
-  border-color: #fff;
+  border-color: var(--header-text);
 }
 .introduce-page .theme-switch .theme-slider {
-  background: #000;
-  border-color: #fff;
+  background: var(--header-bg);
+  border-color: var(--header-text);
 }
 .introduce-page .theme-switch .theme-slider::before {
-  background: #fff;
+  background: var(--header-text);
 }
 .introduce-page .theme-switch input:checked + .theme-slider {
-  background: #fff;
+  background: var(--header-text);
 }
 .introduce-page .theme-switch input:checked + .theme-slider::before {
-  background: #000;
+  background: var(--header-bg);
 }
 .introduce-page .profile-section {
   background: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);

@@ -114,11 +114,11 @@ export async function onRequest(context) {
     // 壳内占位与前端 article.html 的静态默认值一一对应；任一处失配则原样返回静态壳（不阻断）
     let out = shell
       .replace('<title>文章详情 - ' + SITE + '</title>', '<title>' + escHtml(title) + '</title>')
-      .replace('<meta name="description" content="杨楼的个人博客文章页：学习笔记与生活感悟。">',
+      .replace('<meta name="description" content="Yelou的个人博客文章页：学习笔记与生活感悟。">',
         '<meta name="description" content="' + escHtml(desc) + '">')
       .replace('<meta property="og:title" content="文章详情 - ' + SITE + '">',
         '<meta property="og:title" content="' + escHtml(title) + '">')
-      .replace('<meta property="og:description" content="杨楼的个人博客文章页：学习笔记与生活感悟。">',
+      .replace('<meta property="og:description" content="Yelou的个人博客文章页：学习笔记与生活感悟。">',
         '<meta property="og:description" content="' + escHtml(desc) + '">')
       .replace('<meta property="og:url" content="https://yelou.pages.dev/article">',
         '<meta property="og:url" content="' + escHtml(url.href) + '">')

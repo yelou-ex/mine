@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Yelou的个人博客（杨楼）：个人简介、教育背景与学习之路成长记录，收录学习笔记、生活感悟、技术分享与获奖经历，持续更新。">
+    <meta name="description" content="Yelou的个人博客：个人简介、教育背景与学习之路成长记录，收录学习笔记、生活感悟、技术分享与获奖经历，持续更新。">
     <meta property="og:title" content="yelou的个人博客">
-    <meta property="og:description" content="Yelou的个人博客（杨楼）：个人简介、教育背景与学习之路成长记录，收录学习笔记、生活感悟、技术分享与获奖经历，持续更新。">
+    <meta property="og:description" content="Yelou的个人博客：个人简介、教育背景与学习之路成长记录，收录学习笔记、生活感悟、技术分享与获奖经历，持续更新。">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://yelou.pages.dev/">
     <title>yelou的个人博客 - 生活 · 学习 · 成长记录</title>
@@ -154,11 +154,12 @@
         
         /* 侧边栏 */
         .sidebar {
-            flex: 1;opacity: 0.8;
+            flex: 1;
         }
         
+        /* 侧边栏常驻卡片（关于我 / 标签云 / 最近文章）：不透明，比正文卡片更实 */
         .sidebar-widget {
-            background-color: color-mix(in srgb, var(--card) calc(var(--card-op) * 100%), transparent);
+            background-color: var(--card);
             border-radius: 30px;
             box-shadow: var(--card-shadow);
             padding: 20px;
@@ -583,7 +584,7 @@
             <aside class="sidebar">
                 <div class="sidebar-widget about-me">
                     <img src="picture/Image_1751250027684.jpg" alt="个人头像" class="profile-img">
-                    <h3 class="widget-title">杨楼&nbsp;</h3>
+                    <h3 class="widget-title">Yelou&nbsp;</h3>
                     <p>你好！我是一名热爱技术、运动和游戏的博客作者。通过这个博客，我希望能够分享我的所学所思，记录生活中的美好瞬间。</p>
                 </div>
                 

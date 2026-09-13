@@ -1,4 +1,4 @@
-# 杨楼的个人博客（yelou.pages.dev）爬虫规则
+# Yelou的个人博客（yelou.pages.dev）爬虫规则
 User-agent: *
 Allow: /
 
